@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Inbox manager</title>
+<style>
+  :root {
+    --bg: #0a0b0d; --raised: #0f1012; --sunken: #070809;
+    --border: rgba(255,255,255,0.07); --border-strong: rgba(255,255,255,0.16);
+    --text: #e4e4e4; --dim: #9a9a9a; --faint: #5a5a5a;
+    --go: #10b981; --danger: #ef4444; --warn: #f59e0b; --link: #5ba3f5;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 18px; background: var(--bg); color: var(--text);
+         font: 13px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+  h2 { font-size: 11px; margin: 0 0 8px; color: var(--faint); font-weight: 600;
+       text-transform: uppercase; letter-spacing: 0.08em; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .between { justify-content: space-between; }
+  header { margin-bottom: 16px; }
+  .sub { color: var(--dim); font-size: 12px; margin-top: 3px; }
+  .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px;
+          border: 1px solid var(--border-strong); color: var(--dim); white-space: nowrap; }
+  .pill.on   { color: var(--go);     border-color: rgba(16,185,129,0.45); background: rgba(16,185,129,0.10); }
+  .pill.warn { color: var(--warn);   border-color: rgba(245,158,11,0.45); background: rgba(245,158,11,0.10); }
+  .pill.bad  { color: var(--danger); border-color: rgba(239,68,68,0.45);  background: rgba(239,68,68,0.10); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 8px; margin-bottom: 16px; }
+  .tile { background: var(--raised); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .tile .n { font-size: 20px; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .tile .k { font-size: 11px; color: var(--faint); margin-top: 2px; }
+  .panel { background: var(--raised); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+  .panel.dim { opacity: 0.55; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+  button { font: inherit; color: var(--text); background: var(--sunken); border: 1px solid var(--border-strong);
+           border-radius: 6px; padding: 7px 13px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: rgba(255,255,255,0.3); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.go { background: rgba(16,185,129,0.14); border-color: rgba(16,185,129,0.5); color: #6ee7b7; }
+  button.sm { padding: 3px 9px; font-size: 11px; }
+  input, select { font: inherit; color: var(--text); background: var(--sunken); border: 1px solid var(--border);
+                  border-radius: 6px; padding: 7px 10px; }
+  input:focus, select:focus { outline: none; border-color: var(--border-strong); }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .card { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; cursor: pointer; background: var(--sunken); }
+  .card:hover { border-color: var(--border-strong); }
+  .card.active { border-color: rgba(16,185,129,0.6); background: rgba(16,185,129,0.08); }
+  .card .t { font-weight: 600; margin-bottom: 2px; }
+  .card .d { color: var(--dim); font-size: 12px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 999px;
+          border: 1px solid var(--border-strong); font-size: 12px; }
+  .chip b { cursor: pointer; color: var(--faint); font-weight: 400; }
+  .chip b:hover { color: var(--danger); }
+  label.tog { display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; cursor: pointer; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; color: var(--faint); font-weight: 600; font-size: 10px; text-transform: uppercase;
+       letter-spacing: 0.06em; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+  td { padding: 6px; border-bottom: 1px solid var(--border); vertical-align: top; font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  .badge { font-size: 10px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--dim); }
+  .md h1, .md h2, .md h3 { font-size: 13px; color: var(--text); text-transform: none; letter-spacing: 0; margin: 8px 0 4px; }
+  .md ul { margin: 4px 0; padding-left: 18px; }
+  .md p { margin: 4px 0; }
+  .md a, .flag a { color: var(--link); }
+  .counts { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .flag { padding: 7px 2px; border-bottom: 1px solid var(--border); }
+  .flag:last-child { border-bottom: none; }
+  .flag .from { color: var(--dim); font-size: 12px; }
+  .flag .snip { color: var(--faint); font-size: 12px; }
+  .note { color: var(--dim); font-size: 12px; }
+  .muted { color: var(--faint); font-size: 12px; }
+  .banner { border: 1px solid rgba(245,158,11,0.45); background: rgba(245,158,11,0.08); border-radius: 8px;
+            padding: 11px 13px; margin-bottom: 12px; }
+  .banner ul { margin: 6px 0 0; padding-left: 18px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: #c9d1d9; }
+  .hidden { display: none; }
+  footer { color: var(--faint); font-size: 11px; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<header class="row between">
+  <div>
+    <h1>Inbox manager</h1>
+    <div class="sub" id="subtitle">Loading…</div>
+  </div>
+  <div class="row">
+    <span class="pill" id="pill-run">worker: ?</span>
+    <span class="pill on hidden" id="pill-sent">sent</span>
+    <button class="go" id="btn-triage">Triage now</button>
+    <button id="btn-refresh">Refresh</button>
+  </div>
+</header>
+
+<div class="banner hidden" id="setup">
+  <strong>Nothing has run yet</strong>
+  <div class="note">This worker needs three values on the Config tab before it can read your inbox:</div>
+  <ul>
+    <li><code>GMAIL_CLIENT_ID</code></li>
+    <li><code>GMAIL_CLIENT_SECRET</code></li>
+    <li><code>GMAIL_REFRESH_TOKEN</code></li>
+  </ul>
+  <div class="note" style="margin-top:6px">Run <code>python lib/gmail_auth.py</code> on your own machine: it opens the Google consent screen and prints all three lines to paste in.</div>
+</div>
+
+<div class="tiles">
+  <div class="tile"><div class="n" id="t-autonomy">–</div><div class="k">autonomy</div></div>
+  <div class="tile"><div class="n" id="t-triaged">–</div><div class="k">triaged, 7 days</div></div>
+  <div class="tile"><div class="n" id="t-archived">–</div><div class="k">archived</div></div>
+  <div class="tile"><div class="n" id="t-starred">–</div><div class="k">starred</div></div>
+  <div class="tile"><div class="n" id="t-flagged">–</div><div class="k">flags</div></div>
+</div>
+
+<div class="panel">
+  <h2>Autonomy</h2>
+  <div class="cards" id="cards"></div>
+</div>
+
+<div class="grid2">
+  <div class="panel">
+    <h2>VIP senders</h2>
+    <div class="chips" id="vips"></div>
+    <div class="row">
+      <input id="vip-in" placeholder="name@example.com or example.com" style="flex:1">
+      <button id="vip-add">Add</button>
+    </div>
+    <div class="muted" id="vip-err"></div>
+  </div>
+  <div class="panel" id="archive-panel">
+    <h2>Archive in autopilot</h2>
+    <div id="archive"></div>
+    <div class="muted" id="archive-note" style="margin-top:6px"></div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Rules</h2>
+  <table><tbody id="rules"></tbody></table>
+  <div class="row" style="margin-top:10px">
+    <select id="rule-match"><option value="from">from</option><option value="subject">subject</option></select>
+    <input id="rule-pattern" placeholder="pattern" style="flex:1">
+    <select id="rule-cat"></select>
+    <button id="rule-add">Add rule</button>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="panel">
+    <h2>Last triage</h2>
+    <div class="counts" id="counts"></div>
+    <div class="md" id="summary"></div>
+  </div>
+  <div class="panel">
+    <h2>Recent flags</h2>
+    <div id="flags"></div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Batches</h2>
+  <div style="overflow-x:auto"><table>
+    <thead><tr><th>when</th><th>mode</th><th>total</th><th>archived</th><th>starred</th><th>flagged</th><th>classifier</th><th></th></tr></thead>
+    <tbody id="batches"></tbody>
+  </table></div>
+</div>
+
+<footer>Settings here override the Config tab values.</footer>
+
+<script>
+  const $ = (id) => document.getElementById(id)
+  const CATEGORIES = ['Action needed', 'Waiting on them', 'FYI', 'Newsletter', 'Notification', 'Receipt', 'Promotion']
+  const ARCHIVABLE = ['Newsletter', 'Notification', 'Promotion', 'Receipt', 'FYI']
+  const MODES = [
+    ['observe', 'Labels nothing, just reports what it would do.'],
+    ['organise', 'Applies labels and stars. Inbox untouched.'],
+    ['autopilot', 'Also archives the categories chosen below.'],
+  ]
+  const DEFAULTS = { autonomy: 'organise', archive_categories: ['Newsletter', 'Notification', 'Promotion'], vip_senders: [], rules: [] }
+  let settings = { ...DEFAULTS }
+  let timer = null
+
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+  const fmtTs = (ts) => (ts || '').replace('T', ' ').slice(0, 16) || '–'
+  const num = (v) => (v == null ? '–' : Number(v).toLocaleString())
+  const notAvailable = (el) => { el.innerHTML = '<div class="muted">not available yet</div>' }
+
+  const q = async (sql) => {
+    const r = await dispatcher.query(sql)
+    return (r.rows || []).map((row) => Object.fromEntries(r.columns.map((c, i) => [c, row[i]])))
+  }
+  const safe = async (fn, fallback) => { try { return await fn() } catch (e) { return fallback } }
+  const parseJson = (v, fallback) => { try { const x = JSON.parse(v); return x == null ? fallback : x } catch (e) { return fallback } }
+
+  const send = async (text) => {
+    try {
+      await dispatcher.command(text)
+      $('pill-sent').textContent = 'sent: ' + text
+      $('pill-sent').classList.remove('hidden')
+      setTimeout(() => $('pill-sent').classList.add('hidden'), 2500)
+    } catch (e) {
+      $('pill-sent').textContent = 'failed: ' + e.message
+      $('pill-sent').classList.remove('hidden')
+    }
+    setTimeout(refresh, 2500)
+  }
+
+  const md = (src) => {
+    const lines = esc(src).split('\n')
+    const inline = (t) => t
+      .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+      .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    let out = '', list = false
+    lines.forEach((l) => {
+      const h = l.match(/^(#{1,3})\s+(.*)/), b = l.match(/^\s*[-*]\s+(.*)/)
+      if (b) { if (!list) { out += '<ul>'; list = true } out += '<li>' + inline(b[1]) + '</li>'; return }
+      if (list) { out += '</ul>'; list = false }
+      if (h) out += '<h' + h[1].length + '>' + inline(h[2]) + '</h' + h[1].length + '>'
+      else if (l.trim()) out += '<p>' + inline(l) + '</p>'
+    })
+    return out + (list ? '</ul>' : '')
+  }
+
+  const loadStatus = async () => {
+    const s = await safe(() => dispatcher.status(), null)
+    const pill = $('pill-run')
+    pill.className = 'pill ' + (s ? (s.running ? 'on' : 'warn') : 'bad')
+    pill.textContent = 'worker: ' + (s ? s.status : 'unknown')
+  }
+
+  const loadSettings = async () => {
+    const rows = await safe(() => q('SELECT key, value FROM settings'), [])
+    settings = { ...DEFAULTS }
+    rows.forEach((r) => {
+      if (r.key === 'autonomy') settings.autonomy = String(r.value || DEFAULTS.autonomy)
+      else if (r.key === 'vip_senders') settings.vip_senders = parseJson(r.value, [])
+      else if (r.key === 'archive_categories') settings.archive_categories = parseJson(r.value, DEFAULTS.archive_categories)
+      else if (r.key === 'rules') settings.rules = parseJson(r.value, [])
+    })
+    $('t-autonomy').textContent = settings.autonomy
+    renderCards(); renderVips(); renderArchive(); renderRules()
+  }
+
+  const renderCards = () => {
+    $('cards').innerHTML = MODES.map(([m, d]) =>
+      `<div class="card ${m === settings.autonomy ? 'active' : ''}" data-mode="${m}"><div class="t">${m}</div><div class="d">${d}</div></div>`).join('')
+    $('cards').querySelectorAll('.card').forEach((c) => c.onclick = () => send('set autonomy ' + c.dataset.mode))
+  }
+
+  const renderVips = () => {
+    const v = settings.vip_senders
+    $('vips').innerHTML = v.length ? v.map((x) => `<span class="chip">${esc(x)}<b data-v="${esc(x)}">×</b></span>`).join('') : '<span class="muted">no VIPs yet</span>'
+    $('vips').querySelectorAll('b').forEach((b) => b.onclick = () => send('vip remove ' + b.dataset.v))
+  }
+
+  const renderArchive = () => {
+    const auto = settings.autonomy === 'autopilot'
+    $('archive-panel').classList.toggle('dim', !auto)
+    $('archive-note').textContent = auto ? '' : 'Only applies in autopilot; current mode is ' + settings.autonomy + '.'
+    $('archive').innerHTML = ARCHIVABLE.map((c) =>
+      `<label class="tog"><input type="checkbox" value="${c}" ${settings.archive_categories.includes(c) ? 'checked' : ''}> ${c}</label>`).join('')
+    $('archive').querySelectorAll('input').forEach((i) => i.onchange = () => {
+      const on = [...$('archive').querySelectorAll('input:checked')].map((x) => x.value)
+      send(on.length ? 'set archive ' + on.join(',') : 'set archive none')
+    })
+  }
+
+  const renderRules = () => {
+    const r = settings.rules
+    $('rules').innerHTML = r.length ? r.map((x, i) =>
+      `<tr><td class="muted">${i + 1}</td><td>${esc(x.match)}</td><td><code>${esc(x.pattern)}</code></td><td>${esc(x.category)}</td><td style="text-align:right"><button class="sm" data-n="${i + 1}">Remove</button></td></tr>`).join('')
+      : '<tr><td class="muted">no rules yet</td></tr>'
+    $('rules').querySelectorAll('button').forEach((b) => b.onclick = () => send('rule remove ' + b.dataset.n))
+  }
+
+  const loadTiles = async () => {
+    const last = await safe(() => q('SELECT ts, total, archived, starred, flagged FROM batches ORDER BY ts DESC LIMIT 1'), null)
+    const since = new Date(Date.now() - 7 * 864e5).toISOString().replace(/'/g, '')
+    const cnt = await safe(() => q(`SELECT COUNT(*) AS n FROM triage WHERE ts > '${since}'`), null)
+    const totals = await safe(() => q('SELECT COALESCE(SUM(archived),0) AS a, COALESCE(SUM(starred),0) AS s, COALESCE(SUM(flagged),0) AS f FROM batches'), null)
+    const b = last && last[0]
+    $('subtitle').textContent = b ? `Last triage ${fmtTs(b.ts)} · ${num(b.total)} messages` : 'No triage yet'
+    $('t-triaged').textContent = cnt && cnt[0] ? num(cnt[0].n) : '–'
+    const t = totals && totals[0]
+    $('t-archived').textContent = t ? num(t.a) : '–'
+    $('t-starred').textContent = t ? num(t.s) : '–'
+    $('t-flagged').textContent = t ? num(t.f) : '–'
+    return !!b
+  }
+
+  const loadSummary = async () => {
+    const recs = await safe(() => dispatcher.records({ kind: 'triage', limit: 1 }), [])
+    const p = recs[0] && recs[0].payload
+    if (!p) { $('counts').innerHTML = ''; notAvailable($('summary')); return false }
+    const counts = p.counts || {}
+    $('counts').innerHTML = Object.keys(counts).map((k) => `<span class="pill">${esc(k)}: ${num(counts[k])}</span>`).join('')
+    $('summary').innerHTML = p.summary_md ? md(p.summary_md) : '<div class="muted">no summary</div>'
+    return true
+  }
+
+  const loadFlags = async () => {
+    const recs = await safe(() => dispatcher.records({ kind: 'flag', limit: 10 }), [])
+    if (!recs.length) return notAvailable($('flags'))
+    $('flags').innerHTML = recs.map((r) => {
+      const p = r.payload || {}
+      const link = p.url ? ` · <a href="${esc(p.url)}" target="_blank" rel="noopener">Open in Gmail</a>` : ''
+      return `<div class="flag"><div>${esc(r.title || p.subject || '(no subject)')}</div><div class="from">${esc(p.from)}${link}</div><div class="snip">${esc(p.snippet)}</div></div>`
+    }).join('')
+  }
+
+  const loadBatches = async () => {
+    const rows = await safe(() => q('SELECT batch_id, ts, autonomy, total, archived, starred, flagged, classifier, undone_ts FROM batches ORDER BY ts DESC LIMIT 20'), null)
+    if (!rows || !rows.length) { $('batches').innerHTML = '<tr><td colspan="8" class="muted">not available yet</td></tr>'; return }
+    $('batches').innerHTML = rows.map((b) => {
+      const undone = !!b.undone_ts
+      const nothing = (Number(b.archived) || 0) + (Number(b.starred) || 0) === 0
+      const cell = undone ? '<span class="badge">undone</span>' : `<button class="sm" data-b="${esc(b.batch_id)}" ${nothing ? 'disabled' : ''}>Undo</button>`
+      return `<tr><td>${fmtTs(b.ts)}</td><td>${esc(b.autonomy)}</td><td>${num(b.total)}</td><td>${num(b.archived)}</td><td>${num(b.starred)}</td><td>${num(b.flagged)}</td><td class="muted">${esc(b.classifier)}</td><td style="text-align:right">${cell}</td></tr>`
+    }).join('')
+    $('batches').querySelectorAll('button').forEach((b) => b.onclick = () => send('undo ' + b.dataset.b))
+  }
+
+  const refresh = async () => {
+    clearTimeout(timer)
+    await loadStatus()
+    await loadSettings()
+    const [hasBatch, hasTriage] = await Promise.all([loadTiles(), loadSummary()])
+    $('setup').classList.toggle('hidden', hasBatch || hasTriage)
+    await Promise.all([loadFlags(), loadBatches()])
+    timer = setTimeout(refresh, 20000)
+  }
+
+  $('rule-cat').innerHTML = CATEGORIES.map((c) => `<option>${c}</option>`).join('')
+  $('btn-refresh').onclick = refresh
+  $('btn-triage').onclick = () => send('triage now')
+  $('vip-add').onclick = () => {
+    const v = $('vip-in').value.trim().toLowerCase()
+    const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(v)
+    $('vip-err').textContent = ok ? '' : 'Enter an email address or a domain.'
+    if (!ok) return
+    $('vip-in').value = ''
+    send('vip add ' + v)
+  }
+  $('vip-in').onkeydown = (e) => { if (e.key === 'Enter') $('vip-add').click() }
+  $('rule-add').onclick = () => {
+    const pattern = $('rule-pattern').value.trim()
+    if (!pattern) return
+    $('rule-pattern').value = ''
+    send(`rule add ${$('rule-match').value}:${pattern} -> ${$('rule-cat').value}`)
+  }
+  refresh()
+</script>
+</body>
+</html>

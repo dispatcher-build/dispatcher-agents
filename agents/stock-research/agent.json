@@ -1,0 +1,68 @@
+{
+  "id": "stock-research",
+  "name": "Stock Research",
+  "version": 1,
+  "runtime": "python",
+  "entrypoint": "main.py",
+  "base_image": "dispatchkit-agent:latest",
+  "tick_interval": 300.0,
+  "api_port": 8080,
+  "chat_enabled": true,
+  "commands": [
+    {
+      "name": "research",
+      "description": "Deep-dive a ticker now",
+      "template": "research TICKER"
+    },
+    {
+      "name": "status",
+      "description": "Queue, caps and last scans",
+      "template": "status"
+    }
+  ],
+  "resources": {
+    "cpu_limit": 0.5,
+    "memory_limit_mb": 1024
+  },
+  "env_vars": {
+    "FUNDAMENTALS_REFRESH_HOURS": "24",
+    "NEWS_SCAN_MINUTES": "45",
+    "MAX_DEEP_DIVES_PER_DAY": "3",
+    "DEEP_DIVE_COOLDOWN_DAYS": "7",
+    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5",
+    "AWS_REGION": "us-east-1",
+    "SEC_USER_AGENT": "dispatcher-agent (+https://dispatcher.build)",
+    "LLM_DISABLED": "0",
+    "NOTIFY_ON": "finding",
+    "NOTIFY_WEBHOOK_URL": "",
+    "NOTIFY_EMAIL_TO": "",
+    "SMTP_HOST": "",
+    "SMTP_PORT": "587",
+    "SMTP_USER": "",
+    "SMTP_PASSWORD": "",
+    "SMTP_FROM": ""
+  },
+  "goal": "Continuously hunt for undervalued companies in the configured stock universe (default: technology and data-center infrastructure; extend via EXTRA_TICKERS or edit universe.json). Screen fundamentals daily, watch news around the clock, and produce deep-dive theses with conviction scores for the best candidates.",
+  "ai_enabled": false,
+  "coordination": {
+    "event_bus_url": null,
+    "publishes": [
+      "research.finding",
+      "research.screen_complete"
+    ],
+    "subscribes": []
+  },
+  "tags": [
+    "research",
+    "finance",
+    "stocks",
+    "ai"
+  ],
+  "base_id": "",
+  "created_at": "2026-07-13T00:00:00",
+  "updated_at": "2026-07-13T00:00:00",
+  "schedule": {
+    "mode": "interval",
+    "every_minutes": 30
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "id": "gmail-inbox-manager",
+  "name": "Gmail Inbox Manager",
+  "version": 1,
+  "runtime": "python",
+  "entrypoint": "main.py",
+  "base_image": "dispatchkit-agent:latest",
+  "tick_interval": 60.0,
+  "api_port": 8080,
+  "chat_enabled": true,
+  "commands": [
+    {
+      "name": "status",
+      "description": "Autonomy, last triage, counts and label state",
+      "template": "status"
+    },
+    {
+      "name": "triage now",
+      "description": "Run a triage pass immediately",
+      "template": "triage now"
+    },
+    {
+      "name": "undo last",
+      "description": "Reverse the last batch's labels and archives",
+      "template": "undo last"
+    },
+    {
+      "name": "set autonomy <mode>",
+      "description": "observe | organise | autopilot",
+      "template": "set autonomy "
+    },
+    {
+      "name": "vip add <email or domain>",
+      "description": "Flag action items from this sender",
+      "template": "vip add "
+    },
+    {
+      "name": "rule add from:<x> -> <Category>",
+      "description": "Force a category for a sender or subject",
+      "template": "rule add "
+    },
+    {
+      "name": "settings",
+      "description": "Effective settings as JSON",
+      "template": "settings"
+    }
+  ],
+  "resources": {
+    "cpu_limit": 0.25,
+    "memory_limit_mb": 512
+  },
+  "env_vars": {
+    "GMAIL_CLIENT_ID": "",
+    "GMAIL_CLIENT_SECRET": "",
+    "GMAIL_REFRESH_TOKEN": "",
+    "AUTONOMY": "organise",
+    "TRIAGE_EVERY_MINUTES": "15",
+    "MAX_MESSAGES_PER_RUN": "50",
+    "VIP_SENDERS": "",
+    "ARCHIVE_CATEGORIES": "Newsletter,Notification,Promotion",
+    "LABEL_PREFIX": "Dispatcher",
+    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5",
+    "AWS_REGION": "us-east-1",
+    "LLM_DISABLED": "0",
+    "LLM_MAX_CALLS_PER_DAY": "100",
+    "NOTIFY_ON": "flag",
+    "NOTIFY_MIN_SCORE": "",
+    "NOTIFY_WEBHOOK_URL": "",
+    "NOTIFY_EMAIL_TO": "",
+    "SMTP_HOST": "",
+    "SMTP_PORT": "587",
+    "SMTP_USER": "",
+    "SMTP_PASSWORD": "",
+    "SMTP_FROM": ""
+  },
+  "goal": "Keep the Gmail inbox clean and surface what matters: triage new mail into categories, apply Dispatcher/<Category> labels, star action items, sweep newsletters, notifications and promotions out of the inbox according to the autonomy setting, and flag urgent or VIP action items. Never deletes, never sends.",
+  "ai_enabled": false,
+  "coordination": {
+    "event_bus_url": null,
+    "publishes": [
+      "inbox.triage",
+      "inbox.flag"
+    ],
+    "subscribes": []
+  },
+  "tags": [
+    "email",
+    "gmail",
+    "inbox",
+    "productivity",
+    "ops",
+    "ai"
+  ],
+  "schedule": {
+    "mode": "interval",
+    "every_minutes": 15
+  }
+}

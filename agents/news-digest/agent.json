@@ -1,0 +1,66 @@
+{
+  "id": "news-digest",
+  "name": "AI News Digest",
+  "version": 1,
+  "runtime": "python",
+  "entrypoint": "main.py",
+  "base_image": "dispatchkit-agent:latest",
+  "tick_interval": 60.0,
+  "api_port": 8080,
+  "chat_enabled": true,
+  "commands": [
+    {
+      "name": "digest",
+      "description": "Compile a digest from pending items now",
+      "template": "digest"
+    },
+    {
+      "name": "status",
+      "description": "Feeds, pending items and last runs",
+      "template": "status"
+    }
+  ],
+  "resources": {
+    "cpu_limit": 0.25,
+    "memory_limit_mb": 512
+  },
+  "env_vars": {
+    "FEEDS": "https://techcrunch.com/feed/,https://www.theverge.com/rss/index.xml,https://feeds.arstechnica.com/arstechnica/index",
+    "TOPIC": "technology and AI",
+    "SCAN_MINUTES": "30",
+    "DIGEST_EVERY_HOURS": "24",
+    "ALERT_KEYWORDS": "",
+    "MAX_ITEMS_PER_DIGEST": "40",
+    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5",
+    "AWS_REGION": "us-east-1",
+    "LLM_DISABLED": "0",
+    "NOTIFY_ON": "alert,digest",
+    "NOTIFY_WEBHOOK_URL": "",
+    "NOTIFY_EMAIL_TO": "",
+    "SMTP_HOST": "",
+    "SMTP_PORT": "587",
+    "SMTP_USER": "",
+    "SMTP_PASSWORD": "",
+    "SMTP_FROM": ""
+  },
+  "goal": "Watch the configured news feeds around the clock, flag items matching alert keywords the moment they appear, and compile a themed executive digest of what matters on a regular cadence.",
+  "ai_enabled": false,
+  "coordination": {
+    "event_bus_url": null,
+    "publishes": [
+      "news.digest",
+      "news.alert"
+    ],
+    "subscribes": []
+  },
+  "tags": [
+    "news",
+    "research",
+    "digest",
+    "ai"
+  ],
+  "schedule": {
+    "mode": "interval",
+    "every_minutes": 30
+  }
+}

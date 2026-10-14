@@ -1,0 +1,67 @@
+{
+  "id": "vendor-status-watch",
+  "name": "Vendor Status Watch",
+  "version": 1,
+  "runtime": "python",
+  "entrypoint": "main.py",
+  "base_image": "dispatchkit-agent:latest",
+  "tick_interval": 60.0,
+  "api_port": 8080,
+  "chat_enabled": true,
+  "commands": [
+    {
+      "name": "status",
+      "description": "Current health of every watched vendor",
+      "template": "status"
+    },
+    {
+      "name": "report",
+      "description": "Compile a vendor-health brief now",
+      "template": "report"
+    },
+    {
+      "name": "watch",
+      "description": "Add a vendor status page to the watch list",
+      "template": "watch Datadog|https://status.datadoghq.com"
+    }
+  ],
+  "resources": {
+    "cpu_limit": 0.25,
+    "memory_limit_mb": 512
+  },
+  "env_vars": {
+    "VENDORS": "GitHub|https://www.githubstatus.com,Cloudflare|https://www.cloudflarestatus.com,Zoom|https://status.zoom.us,Twilio|https://status.twilio.com,Dropbox|https://status.dropbox.com,OpenAI|https://status.openai.com,Anthropic|https://status.anthropic.com",
+    "SCAN_MINUTES": "5",
+    "REPORT_EVERY_HOURS": "24",
+    "LLM_MAX_CALLS_PER_DAY": "20",
+    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5",
+    "AWS_REGION": "us-east-1",
+    "LLM_DISABLED": "0",
+    "NOTIFY_ON": "incident,recovered",
+    "NOTIFY_WEBHOOK_URL": "",
+    "NOTIFY_EMAIL_TO": "",
+    "SMTP_HOST": "",
+    "SMTP_PORT": "587",
+    "SMTP_USER": "",
+    "SMTP_PASSWORD": "",
+    "SMTP_FROM": ""
+  },
+  "goal": "Watch the public status pages of the SaaS vendors this business depends on, record new incidents the moment they open and recoveries when they resolve, and compile a daily AI vendor-health brief of what broke, what recovered, and what is still degraded.",
+  "ai_enabled": false,
+  "coordination": {
+    "event_bus_url": null,
+    "publishes": [],
+    "subscribes": []
+  },
+  "tags": [
+    "monitoring",
+    "uptime",
+    "vendors",
+    "ops",
+    "ai"
+  ],
+  "schedule": {
+    "mode": "interval",
+    "every_minutes": 15
+  }
+}

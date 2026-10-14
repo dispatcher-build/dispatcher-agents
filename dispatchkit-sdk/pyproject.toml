@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dispatchkit"
+version = "0.2.0"
+description = "DispatchKit Agent SDK — build autonomous digital workers"
+requires-python = ">=3.10"
+dependencies = [
+    "aiohttp>=3.9.0",
+]
+
+[project.optional-dependencies]
+ai = ["anthropic>=0.39.0"]
+
+[tool.setuptools.packages.find]
+include = ["dispatchkit*", "openclaw*"]

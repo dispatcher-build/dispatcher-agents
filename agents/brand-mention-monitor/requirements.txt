@@ -1,0 +1,1 @@
+# All dependencies (requests, feedparser) are baked into the agent base image.

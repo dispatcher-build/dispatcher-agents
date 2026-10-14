@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dispatcher-cli"
+version = "0.1.0"
+description = "Author, sync, and run dispatcher.build agents from your editor"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+dispatcher = "dispatcher_cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["dispatcher_cli*"]
+
+[tool.setuptools.package-data]
+dispatcher_cli = ["*.md"]

@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Campaigns</title>
+<style>
+  :root {
+    --bg: #0a0b0d; --raised: #0f1012; --sunken: #070809;
+    --border: rgba(255,255,255,0.07); --border-strong: rgba(255,255,255,0.16);
+    --text: #e4e4e4; --dim: #9a9a9a; --faint: #5a5a5a;
+    --go: #10b981; --danger: #ef4444; --warn: #f59e0b; --link: #5ba3f5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 18px; background: var(--bg); color: var(--text);
+    font: 13px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+  h2 { font-size: 11px; margin: 0 0 10px; color: var(--faint); font-weight: 600;
+       text-transform: uppercase; letter-spacing: 0.08em; }
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .between { justify-content: space-between; }
+  header { margin-bottom: 14px; }
+  .sub { color: var(--dim); font-size: 12px; margin-top: 3px; }
+
+  .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px;
+          border: 1px solid var(--border-strong); color: var(--dim); white-space: nowrap; }
+  .pill.on   { color: var(--go);     border-color: rgba(16,185,129,0.45); background: rgba(16,185,129,0.10); }
+  .pill.warn { color: var(--warn);   border-color: rgba(245,158,11,0.45); background: rgba(245,158,11,0.10); }
+  .pill.bad  { color: var(--danger); border-color: rgba(239,68,68,0.45);  background: rgba(239,68,68,0.10); }
+
+  .panel { background: var(--raised); border: 1px solid var(--border);
+           border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+
+  button { font: inherit; color: var(--text); background: var(--sunken);
+           border: 1px solid var(--border-strong); border-radius: 6px;
+           padding: 6px 11px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: rgba(255,255,255,0.3); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.go { background: rgba(16,185,129,0.14); border-color: rgba(16,185,129,0.5); color: #6ee7b7; }
+  button.danger { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.45); color: #fca5a5; }
+  button.small { padding: 3px 8px; font-size: 12px; }
+  input, textarea, select {
+    font: inherit; color: var(--text); background: var(--sunken);
+    border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; width: 100%;
+  }
+  textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+             resize: vertical; min-height: 90px; }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--border-strong); }
+  label { display: block; font-size: 11px; color: var(--faint); margin: 0 0 4px;
+          text-transform: uppercase; letter-spacing: 0.06em; }
+  .field { margin-bottom: 10px; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em;
+       color: var(--faint); font-weight: 600; padding: 0 8px 8px 0; }
+  td { padding: 8px 8px 8px 0; border-top: 1px solid var(--border); vertical-align: middle; }
+  td.num { font-variant-numeric: tabular-nums; }
+  tr.selected td { background: rgba(255,255,255,0.03); }
+  .name { font-weight: 600; cursor: pointer; }
+  .name:hover { color: var(--link); }
+
+  .status { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--dim); }
+  .status.sending { color: var(--go); border-color: rgba(16,185,129,0.45); }
+  .status.paused { color: var(--warn); border-color: rgba(245,158,11,0.45); }
+  .status.done { color: var(--link); border-color: rgba(91,163,245,0.45); }
+
+  pre { margin: 0; white-space: pre-wrap; word-break: break-word; background: var(--sunken);
+        border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-size: 12px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; max-height: 300px; overflow: auto; }
+  .note { color: var(--dim); font-size: 12px; margin-top: 8px; }
+  .err { color: #fca5a5; font-size: 12px; margin-top: 8px; }
+  .banner { border: 1px solid rgba(239,68,68,0.45); background: rgba(239,68,68,0.08);
+            border-radius: 8px; padding: 11px 13px; margin-bottom: 12px; font-size: 12px; }
+  .banner ul { margin: 6px 0 0; padding-left: 18px; }
+  .hidden { display: none; }
+  .muted { color: var(--faint); }
+</style>
+</head>
+<body>
+
+<header class="row between">
+  <div>
+    <h1>Campaigns</h1>
+    <div class="sub" id="subtitle">Loading…</div>
+  </div>
+  <div class="row">
+    <span class="pill" id="pill-run">worker: ?</span>
+    <span class="pill" id="pill-provider">provider: ?</span>
+    <span class="pill hidden" id="pill-dry">dry run</span>
+    <button id="refresh">Refresh</button>
+  </div>
+</header>
+
+<div class="banner hidden" id="problems">
+  <strong>Not ready to send</strong>
+  <ul id="problem-list"></ul>
+  <button class="small" id="btn-setup" style="margin-top:10px">How do I set this up?</button>
+</div>
+
+<div class="panel hidden" id="setup-panel">
+  <h2 id="setup-title">Setup</h2>
+  <div id="setup-body" class="sub"></div>
+</div>
+
+<div class="panel">
+  <div class="row between" style="margin-bottom:10px">
+    <h2 style="margin:0">Campaigns</h2>
+    <button class="small" id="btn-new-toggle">New campaign</button>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Status</th><th>Queued</th><th>Sent</th><th>Failed</th><th>Audience</th><th></th></tr>
+    </thead>
+    <tbody id="campaign-rows">
+      <tr><td colspan="7" class="muted">Loading…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="panel hidden" id="new-panel">
+  <h2>New campaign</h2>
+  <div class="grid2">
+    <div class="field"><label for="new-name">Name</label>
+      <input id="new-name" placeholder="august-outreach" autocomplete="off"></div>
+    <div class="field"><label for="new-subject">Subject</label>
+      <input id="new-subject" placeholder="Quick question about {{company}}" autocomplete="off"></div>
+  </div>
+  <div class="field"><label for="new-body">Body</label>
+    <textarea id="new-body" placeholder="Hi {{first_name}},&#10;&#10;...&#10;&#10;Mark"></textarea></div>
+  <div class="row"><button class="go" id="btn-create">Create draft</button>
+    <span class="muted">Any column from your audience works as a {{placeholder}}.</span></div>
+  <div class="note" id="new-note"></div>
+</div>
+
+<div class="panel hidden" id="campaign-panel">
+  <div class="row between" style="margin-bottom:10px">
+    <h2 style="margin:0" id="selected-title">Campaign</h2>
+    <div class="row">
+      <button class="small" id="btn-preview">Preview</button>
+      <button class="small go" id="btn-arm">Start sending</button>
+      <button class="small danger hidden" id="btn-pause">Pause</button>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div>
+      <div class="field">
+        <label for="paste">Add recipients (paste)</label>
+        <textarea id="paste" placeholder="alice@example.com&#10;bob@example.com&#10;&#10;or with columns:&#10;email,first_name,company&#10;alice@acme.com,Alice,Acme"></textarea>
+      </div>
+      <div class="row">
+        <button id="btn-add">Add to campaign</button>
+        <button id="btn-import">Import from source</button>
+      </div>
+    </div>
+    <div>
+      <div class="field">
+        <label for="test-to">Send one test to</label>
+        <input id="test-to" type="email" placeholder="you@example.com" autocomplete="off">
+      </div>
+      <div class="row" style="margin-bottom:12px"><button id="btn-test">Send test</button></div>
+      <div class="field">
+        <label for="suppress-to">Never contact</label>
+        <input id="suppress-to" type="email" placeholder="someone@example.com" autocomplete="off">
+      </div>
+      <div class="row"><button id="btn-suppress">Suppress</button></div>
+    </div>
+  </div>
+  <div class="note" id="action-note"></div>
+</div>
+
+<div class="panel hidden" id="preview-panel">
+  <h2>Next email</h2>
+  <div class="sub" id="preview-to"></div>
+  <div style="font-weight:600;margin:6px 0 10px" id="preview-subject"></div>
+  <pre id="preview-body"></pre>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id)
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+  const num = (v) => (typeof v === 'number' ? v.toLocaleString() : '0')
+  // The bridge caps a command at 4000 chars, so a pasted list goes up in pieces.
+  const CHUNK = 3000
+
+  let stats = null
+  let selected = null
+  let busy = false
+
+  const note = (text, isError) => {
+    const el = $('action-note')
+    el.textContent = text || ''
+    el.className = isError ? 'err' : 'note'
+  }
+
+  // Commands are answered asynchronously: the agent drains its inbox every ~2s
+  // and writes the reply as a record, so poll for the one matching our id.
+  const ask = async (text, timeoutMs = 30000) => {
+    const { id } = await dispatcher.command(text)
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      await sleep(700)
+      const replies = await dispatcher.records({ kind: 'reply', limit: 15 })
+      const hit = replies.find((r) => r.payload && r.payload.reply_to === id)
+      if (hit) return hit.payload
+    }
+    throw new Error('No reply in 30s — is the worker running?')
+  }
+
+  const withBusy = async (button, label, fn) => {
+    if (busy) return
+    busy = true
+    const original = button && button.textContent
+    if (button) { button.disabled = true; button.textContent = label }
+    try { await fn() } catch (e) { note(e.message || String(e), true) }
+    finally { if (button) { button.disabled = false; button.textContent = original }; busy = false }
+  }
+
+  const renderCampaigns = () => {
+    const body = $('campaign-rows')
+    body.innerHTML = ''
+    const rows = (stats && stats.campaigns) || []
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="7" class="muted">No campaigns yet. Create one above.</td></tr>'
+      $('campaign-panel').classList.add('hidden')
+      return
+    }
+    rows.forEach((c) => {
+      const tr = document.createElement('tr')
+      if (c.name === selected) tr.className = 'selected'
+      const name = document.createElement('td')
+      name.innerHTML = `<span class="name">${c.name}</span>`
+      name.onclick = () => { selected = c.name; renderCampaigns(); renderSelected() }
+      const status = document.createElement('td')
+      status.innerHTML = `<span class="status ${c.status}">${c.status}</span>`
+      const cells = [c.queued, c.sent, c.failed, c.recipients].map((v) => {
+        const td = document.createElement('td')
+        td.className = 'num'
+        td.textContent = num(v)
+        return td
+      })
+      const actions = document.createElement('td')
+      const btn = document.createElement('button')
+      btn.className = 'small' + (c.status === 'sending' ? ' danger' : ' go')
+      btn.textContent = c.status === 'sending' ? 'Pause' : 'Start'
+      btn.onclick = (e) => { e.stopPropagation(); selected = c.name; toggleSending(c) }
+      actions.appendChild(btn)
+      tr.append(name, status, ...cells, actions)
+      body.appendChild(tr)
+    })
+    if (!selected || !rows.some((c) => c.name === selected)) selected = rows[0].name
+    renderSelected()
+  }
+
+  const renderSelected = () => {
+    const c = ((stats && stats.campaigns) || []).find((x) => x.name === selected)
+    $('campaign-panel').classList.toggle('hidden', !c)
+    if (!c) return
+    $('selected-title').textContent = `${c.name} — ${c.queued} queued of ${c.recipients}`
+    $('btn-pause').classList.toggle('hidden', c.status !== 'sending')
+    $('btn-arm').textContent = c.status === 'sending' ? 'Send next batch' : 'Start sending'
+  }
+
+  const renderStats = (s) => {
+    stats = s
+    $('subtitle').textContent =
+      `${s.from_email || 'no sender set'} · ${s.batch_size} every ${s.interval_minutes}m · ` +
+      `${num(s.sent_today)} of ${s.daily_cap || '∞'} sent today · ${num(s.suppressed)} suppressed`
+    const provider = $('pill-provider')
+    const pre = s.preflight || {}
+    provider.textContent = `provider: ${s.provider}${pre.ok ? '' : ' ⚠'}`
+    provider.className = 'pill ' + (pre.ok ? 'on' : 'bad')
+    provider.title = pre.ok ? (pre.identity || '') : (pre.problems || []).join(' · ')
+    $('pill-dry').classList.toggle('hidden', !s.dry_run)
+
+    const problems = pre.problems || []
+    $('problems').classList.toggle('hidden', problems.length === 0)
+    $('problem-list').innerHTML = ''
+    problems.forEach((p) => {
+      const li = document.createElement('li')
+      li.textContent = p
+      $('problem-list').appendChild(li)
+    })
+    renderCampaigns()
+  }
+
+  const refresh = async () => {
+    const state = await dispatcher.status().catch(() => null)
+    const run = $('pill-run')
+    run.textContent = 'worker: ' + (state ? state.status : 'unknown')
+    run.className = 'pill ' + (state && state.running ? 'on' : 'warn')
+    if (!state || !state.running) {
+      $('subtitle').textContent = 'Worker is stopped — start it to manage campaigns.'
+      return
+    }
+    const reply = await ask('status')
+    if (reply.stats) renderStats(reply.stats)
+  }
+
+  const toggleSending = (c) => {
+    if (c.status === 'sending') {
+      withBusy(null, '', async () => {
+        note((await ask(`pause ${c.name}`)).text)
+        await refresh()
+      })
+      return
+    }
+    // Arming is outward-facing and no email can be recalled, so confirm first.
+    const ok = confirm(
+      stats.dry_run
+        ? `DRY_RUN is on, so nothing will actually be sent. Start "${c.name}"?`
+        : `This emails ${Number(c.queued).toLocaleString()} recipient(s) from ` +
+          `${stats.from_email} via ${stats.provider}, ${stats.batch_size} every ` +
+          `${stats.interval_minutes} minutes (max ${stats.daily_cap || 'unlimited'}/day). ` +
+          `Each address is emailed once and cannot be recalled. Start "${c.name}"?`,
+    )
+    if (!ok) return
+    withBusy(null, '', async () => {
+      note((await ask(`arm ${c.name}`)).text)
+      await refresh()
+    })
+  }
+
+  // What to actually do about a failed preflight, per provider. Both paths end
+  // at the same place: a domain you control, verified, sending as you.
+  const SETUP = {
+    resend: [
+      'Create a free account at resend.com.',
+      'Add your sending domain under Domains, and add the DNS records it shows you ' +
+        '(DKIM plus the return-path record) at your DNS host. Verification usually takes minutes.',
+      'Create an API key under API Keys with Sending access.',
+      'Paste it into RESEND_API_KEY in this worker\'s Config, and set FROM_EMAIL to an ' +
+        'address on that verified domain.',
+      'Come back here and press Refresh. The provider pill turns green when Resend is ready.',
+    ],
+    ses: [
+      'In the AWS console open SES in the region you want to send from, then Verified identities → Create identity → Domain.',
+      'Choose Easy DKIM, and add the three CNAME records it gives you at your DNS host. ' +
+        'Add an SPF record (v=spf1 include:amazonses.com ~all) and a DMARC record (v=DMARC1; p=none;).',
+      'Request production access from the SES console. A new account is sandboxed and can only ' +
+        'email verified addresses; the review usually takes about a day.',
+      'Create an IAM user with ses:SendRawEmail, ses:GetAccount, ses:GetEmailIdentity and ' +
+        'ses:ListSuppressedDestinations, and paste its key into AWS_ACCESS_KEY_ID / ' +
+        'AWS_SECRET_ACCESS_KEY here. This worker never sends on the platform\'s AWS account.',
+      'Set FROM_EMAIL to an address on the verified domain, set AWS_REGION to match, and press Refresh.',
+    ],
+  }
+
+  $('btn-setup').onclick = () => {
+    const provider = (stats && stats.provider) || 'resend'
+    const steps = SETUP[provider] || SETUP.resend
+    $('setup-title').textContent = `Setting up ${provider}`
+    const list = document.createElement('ol')
+    list.style.margin = '0'
+    list.style.paddingLeft = '20px'
+    steps.forEach((step) => {
+      const li = document.createElement('li')
+      li.textContent = step
+      li.style.marginBottom = '6px'
+      list.appendChild(li)
+    })
+    const body = $('setup-body')
+    body.innerHTML = ''
+    body.appendChild(list)
+    $('setup-panel').classList.remove('hidden')
+    $('setup-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }
+
+  $('refresh').onclick = () => withBusy($('refresh'), 'Refreshing…', refresh)
+  $('btn-new-toggle').onclick = () => $('new-panel').classList.toggle('hidden')
+
+  $('btn-create').onclick = () => withBusy($('btn-create'), 'Creating…', async () => {
+    const name = $('new-name').value.trim()
+    if (!name) { $('new-note').textContent = 'Give the campaign a name.'; return }
+    await ask(`new ${name}`)
+    const subject = $('new-subject').value.trim()
+    const body = $('new-body').value
+    if (subject) await ask(`set ${name} subject ${subject}`)
+    if (body.trim()) await ask(`set ${name} body ${body}`)
+    $('new-note').textContent = `Created ${name}.`
+    $('new-name').value = $('new-subject').value = $('new-body').value = ''
+    selected = name
+    $('new-panel').classList.add('hidden')
+    await refresh()
+  })
+
+  $('btn-add').onclick = () => withBusy($('btn-add'), 'Adding…', async () => {
+    const text = $('paste').value.trim()
+    if (!text) { note('Paste some addresses first.', true); return }
+    const lines = text.split('\n')
+    const header = lines[0].includes(',') && !lines[0].includes('@') ? lines.shift() : null
+    const chunks = []
+    let current = header ? [header] : []
+    let size = header ? header.length : 0
+    for (const line of lines) {
+      if (size + line.length > CHUNK && current.length) {
+        chunks.push(current.join('\n'))
+        current = header ? [header] : []
+        size = header ? header.length : 0
+      }
+      current.push(line)
+      size += line.length + 1
+    }
+    if (current.length) chunks.push(current.join('\n'))
+
+    let added = 0
+    for (let i = 0; i < chunks.length; i++) {
+      const reply = await ask(`add ${selected}\n${chunks[i]}`)
+      const match = /added (\d+)/.exec(reply.text || '')
+      if (match) added += Number(match[1])
+      note(`Adding… ${i + 1} of ${chunks.length} batch(es), ${added} so far.`)
+    }
+    $('paste').value = ''
+    note(`Added ${added} recipient(s) to ${selected}.`)
+    await refresh()
+  })
+
+  $('btn-import').onclick = () => withBusy($('btn-import'), 'Importing…', async () => {
+    note((await ask(`import ${selected}`)).text)
+    setTimeout(() => refresh().catch(() => {}), 4000)
+  })
+
+  $('btn-preview').onclick = () => withBusy($('btn-preview'), 'Rendering…', async () => {
+    const reply = await ask(`preview ${selected}`)
+    const p = reply.preview
+    if (!p) { note(reply.text || 'Nothing to preview.'); return }
+    $('preview-panel').classList.remove('hidden')
+    $('preview-to').textContent = 'To: ' + p.to
+    $('preview-subject').textContent = p.subject
+    $('preview-body').textContent = p.body
+    note((p.missing && p.missing.length)
+      ? 'Missing placeholder values: ' + p.missing.join(', ')
+      : 'This is exactly what the next recipient receives.')
+  })
+
+  $('btn-arm').onclick = () => {
+    const c = (stats.campaigns || []).find((x) => x.name === selected)
+    if (c) toggleSending(c)
+  }
+  $('btn-pause').onclick = () => withBusy($('btn-pause'), 'Pausing…', async () => {
+    note((await ask(`pause ${selected}`)).text)
+    await refresh()
+  })
+
+  $('btn-test').onclick = () => {
+    const to = $('test-to').value.trim()
+    if (!to || to.indexOf('@') < 0) { note('Enter an address to send the test to.', true); return }
+    withBusy($('btn-test'), 'Sending…', async () => {
+      note((await ask(`test ${selected} ${to}`)).text)
+      setTimeout(() => refresh().catch(() => {}), 4000)
+    })
+  }
+
+  $('btn-suppress').onclick = () => {
+    const to = $('suppress-to').value.trim()
+    if (!to || to.indexOf('@') < 0) { note('Enter an address to suppress.', true); return }
+    withBusy($('btn-suppress'), 'Suppressing…', async () => {
+      note((await ask(`suppress ${to}`)).text)
+      $('suppress-to').value = ''
+      await refresh()
+    })
+  }
+
+  refresh().catch((e) => note(e.message || String(e), true))
+  setInterval(() => { if (!busy) refresh().catch(() => {}) }, 30000)
+</script>
+</body>
+</html>

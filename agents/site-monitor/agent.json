@@ -1,0 +1,69 @@
+{
+  "id": "site-monitor",
+  "name": "Website Change Monitor",
+  "version": 1,
+  "runtime": "python",
+  "entrypoint": "main.py",
+  "base_image": "dispatchkit-agent:latest",
+  "tick_interval": 60.0,
+  "api_port": 8080,
+  "chat_enabled": true,
+  "commands": [
+    {
+      "name": "check",
+      "description": "Check all watched pages now",
+      "template": "check"
+    },
+    {
+      "name": "watch",
+      "description": "Watch another page",
+      "template": "watch https://example.com/pricing"
+    },
+    {
+      "name": "status",
+      "description": "Watched pages and last check",
+      "template": "status"
+    }
+  ],
+  "resources": {
+    "cpu_limit": 0.25,
+    "memory_limit_mb": 512
+  },
+  "env_vars": {
+    "URLS": "https://techcrunch.com",
+    "CHECK_MINUTES": "30",
+    "CSS_SELECTOR": "",
+    "MIN_CHANGE_RATIO": "0.02",
+    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5",
+    "AWS_REGION": "us-east-1",
+    "LLM_DISABLED": "0",
+    "NOTIFY_ON": "incident,recovery,change",
+    "NOTIFY_WEBHOOK_URL": "",
+    "NOTIFY_EMAIL_TO": "",
+    "SMTP_HOST": "",
+    "SMTP_PORT": "587",
+    "SMTP_USER": "",
+    "SMTP_PASSWORD": "",
+    "SMTP_FROM": ""
+  },
+  "goal": "Watch the configured web pages for meaningful content changes and downtime. When a page changes, explain what changed and why it matters; when it goes down or recovers, say so immediately. Useful for competitor pages, pricing pages, docs, and status pages.",
+  "ai_enabled": false,
+  "coordination": {
+    "event_bus_url": null,
+    "publishes": [
+      "site.change",
+      "site.incident"
+    ],
+    "subscribes": []
+  },
+  "tags": [
+    "monitoring",
+    "intel",
+    "web",
+    "ai"
+  ],
+  "schedule": {
+    "mode": "interval",
+    "every_minutes": 30
+  }
+}

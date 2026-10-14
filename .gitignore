@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+agents/*/data/
+agents/*/logs/
+.DS_Store

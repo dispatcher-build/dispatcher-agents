@@ -1,0 +1,8 @@
+Metadata-Version: 2.4
+Name: dispatchkit
+Version: 0.2.0
+Summary: DispatchKit Agent SDK — build autonomous digital workers
+Requires-Python: >=3.10
+Requires-Dist: aiohttp>=3.9.0
+Provides-Extra: ai
+Requires-Dist: anthropic>=0.39.0; extra == "ai"

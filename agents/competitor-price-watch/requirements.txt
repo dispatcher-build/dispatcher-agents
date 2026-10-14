@@ -1,0 +1,1 @@
+# All dependencies (requests, beautifulsoup4, lxml) are baked into the agent base image.

@@ -1,0 +1,19 @@
+{
+  "segments": {
+    "semis": ["NVDA", "AMD", "AVGO", "MU", "MRVL", "ON", "TXN", "ADI", "MCHP", "NXPI", "QCOM", "INTC"],
+    "semicap": ["ASML", "AMAT", "LRCX", "KLAC", "TER", "ENTG", "ONTO", "ACMR", "CAMT", "FORM", "UCTT", "ICHR", "AEIS"],
+    "power_cooling": ["VRT", "ETN", "EMR", "HUBB", "NVT", "GEV", "SMCI", "MOD"],
+    "dc_construction": ["PWR", "EME", "FIX", "IESC", "MYRG", "STRL", "DY", "MTZ"],
+    "network_optics": ["ANET", "CIEN", "COHR", "LITE", "AAOI", "FN", "CLS", "JBL", "FLEX"],
+    "dc_reits": ["EQIX", "DLR", "IRM"]
+  },
+  "news_feeds": [
+    "https://www.datacenterdynamics.com/rss/",
+    "https://feeds.finance.yahoo.com/rss/2.0/headline?s={ticker}&region=US&lang=en-US"
+  ],
+  "trigger_keywords": [
+    "capacity", "capex", "guidance", "datacenter", "data center", "AI", "backlog",
+    "orders", "downgrade", "upgrade", "selloff", "sell-off", "expansion", "megawatt",
+    "gigawatt", "hyperscaler", "buildout", "contract", "award", "miss", "beat", "cut"
+  ]
+}

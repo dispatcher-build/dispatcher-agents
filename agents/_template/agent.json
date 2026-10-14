@@ -1,0 +1,31 @@
+{
+  "id": "_template",
+  "name": "New Agent",
+  "version": 1,
+  "runtime": "python",
+  "entrypoint": "main.py",
+  "base_image": "dispatchkit-agent:latest",
+  "tick_interval": 60.0,
+  "api_port": 8080,
+  "chat_enabled": true,
+  "commands": [],
+  "resources": {
+    "cpu_limit": 0.25,
+    "memory_limit_mb": 512
+  },
+  "env_vars": {
+    "WORK_INTERVAL_HOURS": "1",
+    "LLM_DISABLED": "0",
+    "LLM_MAX_CALLS_PER_DAY": "50",
+    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5",
+    "AWS_REGION": "us-east-1"
+  },
+  "goal": "Describe what this agent should accomplish.",
+  "ai_enabled": false,
+  "coordination": {
+    "event_bus_url": null,
+    "publishes": [],
+    "subscribes": []
+  },
+  "tags": []
+}

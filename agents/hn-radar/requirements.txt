@@ -1,0 +1,1 @@
+# requests and bs4 ship in the base image; no extra deps

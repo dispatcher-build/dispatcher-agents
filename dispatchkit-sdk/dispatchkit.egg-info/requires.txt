@@ -1,0 +1,4 @@
+aiohttp>=3.9.0
+
+[ai]
+anthropic>=0.39.0

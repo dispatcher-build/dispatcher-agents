@@ -1,0 +1,29 @@
+name: Validate agents
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  contract:
+    name: Agent contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install the SDK and the base-image dependency set
+        run: |
+          pip install ./dispatchkit-sdk
+          pip install -r requirements-agents.txt
+      - name: Install any agent-specific requirements
+        run: |
+          for req in agents/*/requirements.txt; do
+            grep -qvE '^\s*(#|$)' "$req" && pip install -r "$req" || true
+          done
+      - name: Check every agent against the contract
+        run: python3 validate_agents.py --root agents
+      - name: Boot each agent with the LLM disabled
+        run: python3 validate_agents.py --root agents --smoke --smoke-seconds 10

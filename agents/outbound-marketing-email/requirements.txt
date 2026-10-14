@@ -1,0 +1,2 @@
+# All dependencies are baked into the agent base image (requests, boto3).
+# Resend is called over plain HTTPS, so it needs nothing extra.

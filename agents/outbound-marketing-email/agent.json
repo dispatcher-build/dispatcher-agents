@@ -1,0 +1,115 @@
+{
+  "id": "outbound-marketing-email",
+  "name": "Outbound Marketing Email",
+  "version": 1,
+  "runtime": "python",
+  "entrypoint": "main.py",
+  "base_image": "dispatchkit-agent:latest",
+  "tick_interval": 30.0,
+  "api_port": 8080,
+  "chat_enabled": true,
+  "commands": [
+    {
+      "name": "status",
+      "description": "Every campaign, its queue and what has sent",
+      "template": "status"
+    },
+    {
+      "name": "preflight",
+      "description": "Check the provider key, sender domain and quota",
+      "template": "preflight"
+    },
+    {
+      "name": "new",
+      "description": "Create a draft campaign",
+      "template": "new my-campaign"
+    },
+    {
+      "name": "import",
+      "description": "Pull recipients from the configured source",
+      "template": "import my-campaign postgres"
+    },
+    {
+      "name": "preview",
+      "description": "Render the next email exactly as it will send",
+      "template": "preview my-campaign"
+    },
+    {
+      "name": "test",
+      "description": "Send one test to an address you name",
+      "template": "test my-campaign you@example.com"
+    },
+    {
+      "name": "arm",
+      "description": "Let a campaign start sending",
+      "template": "arm my-campaign"
+    },
+    {
+      "name": "pause",
+      "description": "Stop a campaign, keep its place",
+      "template": "pause my-campaign"
+    },
+    {
+      "name": "suppress",
+      "description": "Never contact these addresses again",
+      "template": "suppress someone@example.com"
+    }
+  ],
+  "resources": {
+    "cpu_limit": 0.25,
+    "memory_limit_mb": 512
+  },
+  "env_vars": {
+    "PROVIDER": "resend",
+    "RESEND_API_KEY": "",
+    "FROM_EMAIL": "",
+    "FROM_NAME": "",
+    "REPLY_TO": "",
+    "BATCH_SIZE": "10",
+    "SEND_INTERVAL_MINUTES": "30",
+    "DAILY_CAP": "200",
+    "RATE_PER_SECOND": "1",
+    "DRY_RUN": "0",
+    "PREFLIGHT_HOURS": "6",
+    "SOURCE": "paste",
+    "SOURCE_DSN": "",
+    "SOURCE_QUERY": "",
+    "SOURCE_FILE": "list.csv",
+    "UNSUBSCRIBE_MAILTO": "",
+    "UNSUBSCRIBE_URL": "",
+    "AWS_REGION": "us-east-1",
+    "AWS_ACCESS_KEY_ID": "",
+    "AWS_SECRET_ACCESS_KEY": "",
+    "SKIP_SES_SUPPRESSION": "0",
+    "LLM_DISABLED": "0",
+    "LLM_MAX_CALLS_PER_DAY": "50",
+    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5",
+    "NOTIFY_ON": "done,blocked",
+    "NOTIFY_WEBHOOK_URL": "",
+    "NOTIFY_EMAIL_TO": "",
+    "SMTP_HOST": "",
+    "SMTP_PORT": "587",
+    "SMTP_USER": "",
+    "SMTP_PASSWORD": "",
+    "SMTP_FROM": ""
+  },
+  "goal": "Run outbound email campaigns for its owner. Holds several campaigns at once, each with its own audience, subject and body, and sends only the ones armed from the worker's interface. Pulls recipients from a database query, a file, or addresses pasted in; validates every address; paces sending within a daily cap and a rate so a large list goes out over days rather than one reputation-burning burst; never emails the same person twice for a campaign; and honours a suppression list. Sends through Resend or Amazon SES using the owner's own account.",
+  "ai_enabled": false,
+  "coordination": {
+    "event_bus_url": null,
+    "publishes": [],
+    "subscribes": []
+  },
+  "tags": [
+    "email",
+    "outreach",
+    "campaigns",
+    "marketing",
+    "resend",
+    "ses"
+  ],
+  "schedule": {
+    "mode": "interval",
+    "every_minutes": 30
+  }
+}
