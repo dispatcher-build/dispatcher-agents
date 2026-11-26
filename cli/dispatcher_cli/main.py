@@ -66,9 +66,10 @@ def cmd_bases(args):
 
 
 def cmd_pull(args):
-    client = _client(args)
-    agent_id = args.agent
-    dest = Path(args.dir or agent_id)
+    _pull(_client(args), args.agent, Path(args.dir or args.agent))
+
+
+def _pull(client, agent_id, dest):
     dest.mkdir(parents=True, exist_ok=True)
     files = client.list_files(agent_id)
     for f in files:
@@ -183,8 +184,24 @@ def _fetch_github(owner, repo, subpath, ref, dest):
     return agent_dir
 
 
+DIRECTORY_SOURCE_RE = re.compile(r"^(?P<kind>pack|agent):(?P<slug>[a-z0-9][a-z0-9-]*)$")
+
+
+def _install_from_directory(client, kind, slug, ref):
+    try:
+        data = client.directory_install(kind, slug, ref)
+    except ApiError as e:
+        sys.exit(f"could not add {kind} '{slug}': {e}")
+    for agent in data.get("agents") or []:
+        print(f"added {agent['name']}  ({agent['id']})")
+    print("all stopped; nothing runs or bills until you start one: dispatcher start --agent <id>")
+
+
 def cmd_install(args):
     client = _client(args)
+    directory = DIRECTORY_SOURCE_RE.match(args.source)
+    if directory:
+        return _install_from_directory(client, directory["kind"], directory["slug"], args.ref)
     with tempfile.TemporaryDirectory() as tmp:
         parsed = _parse_source(args.source)
         if parsed is None:
@@ -254,7 +271,51 @@ def cmd_install(args):
     print(f"next: dispatcher start --agent {agent_id}")
 
 
+REMOTE_AGENTS_DIR = Path.home() / ".dispatcher" / "agents"
+
+
+def _sdk_path(explicit):
+    if explicit:
+        return explicit
+    if os.environ.get("DISPATCHKIT_SDK"):
+        return os.environ["DISPATCHKIT_SDK"]
+    import importlib.util
+    if importlib.util.find_spec("dispatchkit") is not None:
+        return None
+    repo_sdk = Path(__file__).resolve().parents[2] / "backend" / "dispatchkit-sdk"
+    return str(repo_sdk) if (repo_sdk / "dispatchkit").is_dir() else None
+
+
+def _run_remote(args):
+    client = _client(args)
+    agent_id = args.remote
+    dest = Path(os.environ.get("DISPATCHER_AGENTS_DIR") or REMOTE_AGENTS_DIR) / agent_id
+    _pull(client, agent_id, dest)
+    env = dict(os.environ)
+    try:
+        env_vars = client.get_env(agent_id).get("env_vars", {})
+    except ApiError as e:
+        sys.exit(f"could not read the worker's env: {e}")
+    masked = [k for k, v in env_vars.items() if isinstance(v, str) and v.startswith("••••")]
+    for key, value in env_vars.items():
+        if key not in masked and isinstance(value, str) and value != "":
+            env[key] = value
+    if masked:
+        print(f"note: secret values are not readable over the API, set them in the shell: {', '.join(masked)}", file=sys.stderr)
+    env["AGENT_ID"] = agent_id
+    env["DISPATCHKIT_REMOTE_URL"] = client.url
+    env["DISPATCHKIT_TOKEN"] = client.token
+    env.setdefault("AUTOMATION_MODE", "true")
+    sdk = _sdk_path(args.sdk)
+    if sdk:
+        env["PYTHONPATH"] = f"{sdk}:{env.get('PYTHONPATH', '')}".rstrip(":")
+    print(f"running {agent_id} from {dest}, reporting to {client.url}")
+    sys.exit(subprocess.call([sys.executable, "-u", "main.py"], cwd=dest, env=env))
+
+
 def cmd_run(args):
+    if args.remote:
+        return _run_remote(args)
     src = Path(args.dir or ".")
     if not (src / "main.py").is_file():
         sys.exit(f"no main.py in {src}/ — nothing to run")
@@ -347,15 +408,16 @@ def main():
     p.set_defaults(fn=cmd_push)
 
     p = sub.add_parser("install", help="install an agent from GitHub or a local directory")
-    p.add_argument("source", help="owner/repo/path, a github URL, or a local directory")
+    p.add_argument("source", help="pack:<name> or agent:<name> from the open directory, owner/repo/path, a github URL, or a local directory")
     p.add_argument("--as", dest="name", help="name for the new agent (defaults to the manifest name)")
     p.add_argument("--ref", default="", help="branch, tag or commit (defaults to main, then master)")
     p.add_argument("--base", help="base/department id to place the worker in (see `dispatcher bases`)")
     p.set_defaults(fn=cmd_install)
 
-    p = sub.add_parser("run", help="run the agent locally (LLM disabled unless --llm)")
+    p = sub.add_parser("run", help="run the agent locally (LLM disabled unless --llm); --remote <id> runs a hosted worker's code on this machine, reporting to the platform")
     p.add_argument("dir", nargs="?")
     p.add_argument("--llm", action="store_true")
+    p.add_argument("--remote", metavar="AGENT_ID", help="pull the worker from the platform and run it here as its live process (its env applies, LLM stays on)")
     p.add_argument("--sdk", help="path to the dispatchkit SDK if not pip-installed")
     p.set_defaults(fn=cmd_run)
 

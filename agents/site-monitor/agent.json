@@ -34,7 +34,7 @@
     "CHECK_MINUTES": "30",
     "CSS_SELECTOR": "",
     "MIN_CHANGE_RATIO": "0.02",
-    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5",
+    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5-5",
     "AWS_REGION": "us-east-1",
     "LLM_DISABLED": "0",
     "NOTIFY_ON": "incident,recovery,change",

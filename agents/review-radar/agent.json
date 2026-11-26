@@ -42,7 +42,7 @@
     "REPLY_DRAFTS": "1",
     "MAX_DRAFTS_PER_DAY": "10",
     "REPORT_EVERY_HOURS": "168",
-    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5",
+    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5-5",
     "AWS_REGION": "us-east-1",
     "LLM_DISABLED": "0",
     "LLM_MAX_CALLS_PER_DAY": "40",
@@ -56,6 +56,9 @@
     "SMTP_PASSWORD": "",
     "SMTP_FROM": ""
   },
+  "requires_env": [
+    "GOOGLE_PLACES_API_KEY"
+  ],
   "goal": "Watch the business's Google reviews around the clock, surface every new review the moment it lands with a drafted owner reply, alert immediately on negative reviews and rating drops, and compile a reputation report on a regular cadence.",
   "ai_enabled": false,
   "coordination": {

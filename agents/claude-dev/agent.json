@@ -1,0 +1,47 @@
+{
+  "id": "claude-dev",
+  "name": "Claude Dev",
+  "version": 3,
+  "runtime": "python",
+  "entrypoint": "main.py",
+  "base_image": "dispatchkit-agent:latest",
+  "tick_interval": 15.0,
+  "api_port": 8080,
+  "chat_enabled": true,
+  "commands": [
+    {
+      "name": "sessions",
+      "description": "One line per session: working or idle, commits, port, PR"
+    }
+  ],
+  "resources": {
+    "cpu_limit": 0.5,
+    "memory_limit_mb": 1024
+  },
+  "env_vars": {
+    "DEV_REPO": "",
+    "DEV_BASE_BRANCH": "main",
+    "DEV_PERMISSION_MODE": "acceptEdits",
+    "DEV_MODEL": "",
+    "DEV_BRIEF": "",
+    "DEV_SETUP_COMMAND": "",
+    "DEV_SEED_COMMAND": "",
+    "DEV_UP_COMMAND": "",
+    "DEV_DOWN_COMMAND": ""
+  },
+  "goal": "A lead for parallel Claude Code sessions on one of your repositories, on your own computer with your Claude subscription. Start a session from its page and it becomes its own worker with its own git worktree, branch and app ports; ask the lead what's going on across all of them, or have it hand work out.",
+  "schedule": {
+    "mode": "local"
+  },
+  "ai_enabled": true,
+  "tags": [
+    "dev",
+    "claude-code",
+    "git",
+    "worktree",
+    "parallel"
+  ],
+  "requires_env": [
+    "DEV_REPO"
+  ]
+}

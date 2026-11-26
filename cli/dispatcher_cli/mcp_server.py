@@ -4,7 +4,10 @@ Speaks newline-delimited JSON-RPC 2.0: initialize, tools/list, tools/call.
 Register with Claude Code as: claude mcp add dispatcher -- dispatcher mcp
 """
 import json
+import os
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 from .api import ApiError, Client
@@ -66,6 +69,43 @@ TOOLS = [
             },
             "required": ["agent_id", "name", "dest"],
         },
+    },
+    {
+        "name": "dev_sessions",
+        "description": "Claude Dev: list the Claude Code sessions in progress on a repository. Each session is its own worker (a hex) with its own git worktree, branch and app ports. Returns the lead worker's id and, per session: name, agent_id, working or idle, current or last task, last answer, commits ahead, uncommitted files, ports, app URL, pull request, worktree path.",
+        "inputSchema": {"type": "object", "properties": {"repo": {"type": "string", "description": "Path of the repository on this machine; defaults to the repository this MCP server was started in"}}},
+    },
+    {
+        "name": "dev_start_session",
+        "description": "Claude Dev: start a new Claude Code session on a repository: a new worker (hex) with its own git worktree at <repo>.worktrees/<name>, branch <name>, app ports and Claude Code conversation, which starts on the task. Creates the repository's lead worker first if it has none. The session runs on the user's own computer (the Dispatcher desktop app, or `dispatcher run --remote <id>`).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task": {"type": "string", "description": "What the session should do, complete enough to be done without questions"},
+                "name": {"type": "string", "description": "Session and branch name (letters, numbers, dashes, dots); derived from the task when omitted"},
+                "repo": {"type": "string", "description": "Path of the repository on this machine; defaults to the repository this MCP server was started in"},
+            },
+            "required": ["task"],
+        },
+    },
+    {
+        "name": "dev_send",
+        "description": "Claude Dev: send a session a follow-up task, or one of its commands: `up` (start its app on its own ports), `down`, `diff`, `sync`, `pr` (rebase, push, open or update the pull request), `stop`, `status`. Read the outcome with dev_sessions or agent_chat on the session's agent_id.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"session": {"type": "string"}, "text": {"type": "string"}, "repo": {"type": "string", "description": "Path of the repository on this machine; defaults to the repository this MCP server was started in"}},
+            "required": ["session", "text"],
+        },
+    },
+    {
+        "name": "dev_close_session",
+        "description": "Claude Dev: close a session: stops its app, removes its worktree (refused while it has uncommitted changes), frees its ports, keeps its branch, and deletes its worker.",
+        "inputSchema": {"type": "object", "properties": {"session": {"type": "string"}, "repo": {"type": "string", "description": "Path of the repository on this machine; defaults to the repository this MCP server was started in"}}, "required": ["session"]},
+    },
+    {
+        "name": "dev_ask_lead",
+        "description": "Claude Dev: ask the repository's lead, a read-only Claude Code session that can see every session's worktree, a question or give it managerial work: what is in progress, review a session's changes, split a feature across sessions, open PRs for what is done. The answer arrives as a `turn` record; read it with agent_chat or agent_records on the lead's id.",
+        "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}, "repo": {"type": "string", "description": "Path of the repository on this machine; defaults to the repository this MCP server was started in"}}, "required": ["text"]},
     },
     {
         "name": "send_command",
@@ -150,11 +190,12 @@ TOOLS = [
     },
     {
         "name": "update_agent_manifest",
-        "description": "Update the editable manifest fields: goal, commands, tick_interval (5-86400 seconds), tags, inputs (agent links; prefer link_agents/unlink_agents)",
+        "description": "Update the editable manifest fields: name (renames the worker everywhere, 1-80 characters), goal, commands, tick_interval (5-86400 seconds), tags, inputs (agent links; prefer link_agents/unlink_agents)",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "agent_id": {"type": "string"},
+                "name": {"type": "string"},
                 "goal": {"type": "string"},
                 "commands": {
                     "type": "array",
@@ -354,7 +395,104 @@ TOOLS = [
 ]
 
 
+DEV_GOAL_HINT = "Claude Code"
+
+
+def _dev_repo(args):
+    given = (args.get("repo") or "").strip()
+    start = Path(os.path.expanduser(given)) if given else Path.cwd()
+    try:
+        common = subprocess.run(
+            ["git", "-C", str(start), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            capture_output=True, text=True, timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError) as e:
+        raise ValueError(f"could not run git in {start}: {e}")
+    if common.returncode != 0:
+        raise ValueError(f"{start} is not inside a git repository; pass `repo`")
+    return Path(common.stdout.strip()).parent.resolve()
+
+
+def _dev_lead(client, repo):
+    agents = client.list_agents()
+    agents = agents if isinstance(agents, list) else agents.get("agents", [])
+    likely = [a for a in agents if DEV_GOAL_HINT in (a.get("goal") or "")]
+    found = []
+    for group in (likely, [a for a in agents if a not in likely]):
+        for agent in group:
+            try:
+                env = client.get_env(agent["id"]).get("env_vars", {})
+            except ApiError:
+                continue
+            if env.get("DEV_ROLE", "lead") not in ("", "lead") or not env.get("DEV_REPO"):
+                continue
+            if Path(os.path.expanduser(env["DEV_REPO"])).resolve() != repo:
+                continue
+            try:
+                records = client.records(agent["id"], limit=20).get("records") or []
+                alive = bool((client.status(agent["id"]).get("local") or {}).get("alive"))
+            except ApiError:
+                continue
+            if any(r.get("kind") == "team" for r in records):
+                found.append((alive, agent))
+        if found:
+            break
+    found.sort(key=lambda pair: not pair[0])
+    return found[0][1] if found else None
+
+
+def _dev_reply(client, agent_id, command_id, wait=30):
+    deadline = time.time() + wait
+    while time.time() < deadline:
+        time.sleep(2)
+        records = client.records(agent_id, limit=20).get("records") or []
+        for record in records:
+            if record.get("kind") == "reply" and (record.get("payload") or {}).get("reply_to") == command_id:
+                return (record.get("payload") or {}).get("text")
+    return None
+
+
+def _dev_command(client, lead, text, wait=30):
+    sent = client.send_command(lead["id"], text)
+    command_id = (sent.get("command") or {}).get("id")
+    reply = _dev_reply(client, lead["id"], command_id, wait) if command_id else None
+    local = (client.status(lead["id"]).get("local") or {})
+    result = {"lead": {"agent_id": lead["id"], "name": lead["name"], "running": bool(local.get("alive"))}, "reply": reply}
+    if reply is None:
+        result["note"] = (
+            "The lead has not answered yet. " + ("It is running; read agent_chat on its id." if local.get("alive") else
+            "It is not running on any computer: open the Dispatcher desktop app, or run `dispatcher run --remote " + lead["id"] + "`. The command stays queued until then.")
+        )
+    return result
+
+
+def _dev_tool(client, name, args):
+    repo = _dev_repo(args)
+    lead = _dev_lead(client, repo)
+    if name == "dev_start_session" and lead is None:
+        created = client.create_agent(f"{repo.name}-lead", template_id="claude-dev", env_vars={"DEV_REPO": str(repo)})
+        lead = created.get("agent") or created
+        client.set_schedule(lead["id"], "local")
+    if lead is None:
+        raise ValueError(f"No Claude Dev lead for {repo} on this account. Start one with dev_start_session, or add Claude Dev in the app and set DEV_REPO.")
+    if name == "dev_sessions":
+        team = next((r.get("payload") or {} for r in client.records(lead["id"], limit=50).get("records") or [] if r.get("kind") == "team"), {})
+        local = client.status(lead["id"]).get("local") or {}
+        return {"repo": str(repo), "lead": {"agent_id": lead["id"], "name": lead["name"], "running": bool(local.get("alive")), "working": bool((team.get("lead") or {}).get("working"))}, "sessions": team.get("sessions") or []}
+    if name == "dev_start_session":
+        session = (args.get("name") or "").strip()
+        task = args["task"].strip()
+        return _dev_command(client, lead, f"+{session} {task}" if session else f"+ {task}")
+    if name == "dev_send":
+        return _dev_command(client, lead, f"@{args['session'].strip()} {args['text'].strip()}")
+    if name == "dev_close_session":
+        return _dev_command(client, lead, f"@{args['session'].strip()} close")
+    return _dev_command(client, lead, args["text"].strip(), wait=6)
+
+
 def call_tool(client, name, args):
+    if name.startswith("dev_"):
+        return _dev_tool(client, name, args)
     if name == "get_target":
         production = "dispatcher.build" in client.url
         return {
@@ -399,7 +537,7 @@ def call_tool(client, name, args):
     if name == "get_agent_manifest":
         return client.get_manifest(args["agent_id"])
     if name == "update_agent_manifest":
-        fields = {k: args[k] for k in ("goal", "commands", "tick_interval", "tags", "inputs") if k in args}
+        fields = {k: args[k] for k in ("name", "goal", "commands", "tick_interval", "tags", "inputs") if k in args}
         return client.update_manifest(args["agent_id"], fields)
     if name == "link_agents":
         return client.link_agents(args["agent_id"], args["source_agent_id"], args["as"])
@@ -465,7 +603,7 @@ def serve():
             send({"jsonrpc": "2.0", "id": rid, "result": {
                 "protocolVersion": PROTOCOL_VERSION,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "dispatcher", "version": "0.4.0"},
+                "serverInfo": {"name": "dispatcher", "version": "0.5.0"},
             }})
         elif method == "tools/list":
             send({"jsonrpc": "2.0", "id": rid, "result": {"tools": TOOLS}})

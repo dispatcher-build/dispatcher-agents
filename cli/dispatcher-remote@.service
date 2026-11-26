@@ -1,0 +1,16 @@
+[Unit]
+Description=Dispatcher worker %i running on this machine
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env dispatcher run --remote %i
+EnvironmentFile=-%h/.dispatcher/env/%i.env
+Restart=always
+RestartSec=15
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

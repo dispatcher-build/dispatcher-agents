@@ -74,7 +74,7 @@ class Client:
             raise ApiError(0, f"cannot reach {self.url} ({e.reason})") from None
 
     def list_agents(self):
-        return self.request("GET", "/api/v2/agents/")
+        return self.request("GET", "/api/v2/agents/?mine=1")
 
     def list_bases(self):
         return self.request("GET", "/api/workspace").get("bases") or []
@@ -86,6 +86,12 @@ class Client:
         if color:
             body["color"] = color
         return self.request("POST", "/api/workspace/bases", body)
+
+    def directory_install(self, kind, slug, ref=""):
+        body = {"kind": kind, "slug": slug}
+        if ref:
+            body["ref"] = ref
+        return self.request("POST", "/api/directory/install", body)
 
     def create_agent(self, name, template_id=None, goal=None, env_vars=None, cpu_limit=None, memory_limit_mb=None, base_id=None):
         body = {"name": name}

@@ -14,18 +14,15 @@
     "memory_limit_mb": 512
   },
   "env_vars": {
-    "WORK_INTERVAL_HOURS": "1",
     "LLM_DISABLED": "0",
     "LLM_MAX_CALLS_PER_DAY": "50",
-    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5",
+    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5-5",
     "AWS_REGION": "us-east-1"
   },
-  "goal": "Describe what this agent should accomplish.",
+  "goal": "",
   "ai_enabled": false,
-  "coordination": {
-    "event_bus_url": null,
-    "publishes": [],
-    "subscribes": []
-  },
-  "tags": []
+  "tags": [],
+  "schedule": {
+    "mode": "on_demand"
+  }
 }

@@ -29,7 +29,7 @@ from aiohttp import web
 
 from dispatchkit.events import Event
 from dispatchkit.records import append_record, read_records
-from dispatchkit import http, links, llm, notify, util
+from dispatchkit import http, links, llm, notify, remote, util
 from dispatchkit.inbox import read_new_commands, commit_cursor, load_cursor
 from dispatchkit.store import Store
 
@@ -37,6 +37,38 @@ logger = logging.getLogger(__name__)
 
 
 PHASE_ATTR = "_dispatchkit_phase"
+
+
+class Command(str):
+    """A chat command: the text the user typed, plus the inbox record's fields.
+
+    It is the text itself, so `cmd.strip()`, `cmd.lower()` and `cmd == "status"`
+    work, and it also answers `cmd["text"]`, `cmd.get("meta")` and the other
+    record keys, so handlers written either way read the same message.
+    """
+
+    def __new__(cls, record: dict):
+        obj = super().__new__(cls, str(record.get("text") or ""))
+        obj._record = dict(record)
+        return obj
+
+    def get(self, key, default=None):
+        return self._record.get(key, default)
+
+    def __getitem__(self, key):
+        if isinstance(key, str):
+            return self._record[key]
+        return str.__getitem__(self, key)
+
+    def keys(self):
+        return self._record.keys()
+
+    def items(self):
+        return self._record.items()
+
+    @property
+    def text(self) -> str:
+        return str.__str__(self)
 
 
 def phase(
@@ -131,6 +163,7 @@ class Agent(ABC):
         self.lifecycle = AgentState.STARTING
         self._cycle = 0
         self._errors = 0
+        self._last_tick_error: Optional[Exception] = None
         self._error_rounds = 0
         self._last_tick: Optional[float] = None
         self._started_at: Optional[float] = None
@@ -141,6 +174,7 @@ class Agent(ABC):
         self._app: Optional[web.Application] = None
         self._runner: Optional[web.AppRunner] = None
         self._store: Optional[Store] = None
+        self._remote = remote.Remote.from_env(self.config.agent_id, self.config.data_dir)
 
     @property
     def store(self) -> "Store":
@@ -223,7 +257,7 @@ class Agent(ABC):
         """Handle an incoming event from another agent. Override to react."""
         logger.info(f"Received event: {event.type} from {event.source}")
 
-    async def on_command(self, command: dict) -> Any:
+    async def on_command(self, command: "Command") -> Any:
         """
         Handle a user command from the inbox. Return a str or dict reply.
         Default: answer conversationally from goal + state + recent records.
@@ -243,7 +277,8 @@ class Agent(ABC):
             f"Answer the user's message using the context below. Be concise; markdown is fine. "
             f"If asked to do something outside your capabilities, say what you can do instead."
         )
-        prompt = "\n\n".join(context_parts) + f"\n\nUser message: {command.get('text', '')}"
+        text = command.get("text", "") if hasattr(command, "get") else str(command)
+        prompt = "\n\n".join(context_parts) + f"\n\nUser message: {text}"
         stub = f"[llm disabled] state: {json.dumps(self.state, default=str)[:500]}"
         try:
             return await self.ask_llm(prompt, system=system, stub=stub)
@@ -341,6 +376,8 @@ class Agent(ABC):
             alert=alert,
         )
         self._metrics["records_written"] = self._metrics.get("records_written", 0) + 1
+        if self._remote is not None:
+            self._remote.record(rec)
         if notify.dispatch(rec, self.config.name, self.config.data_dir):
             self._metrics["notifications_sent"] = self._metrics.get("notifications_sent", 0) + 1
         return rec
@@ -385,6 +422,8 @@ class Agent(ABC):
         except (json.JSONDecodeError, OSError):
             pass
         path.write_text(json.dumps(status))
+        if self._remote is not None:
+            self._remote.set_state("needs_setup", status["missing"], hint)
         logger.info("needs_setup: missing %s — %s", ", ".join(status["missing"]), hint)
 
     def clear_needs_setup(self) -> None:
@@ -392,6 +431,8 @@ class Agent(ABC):
         path = self.config.data_dir / "status.json"
         if path.exists():
             path.unlink()
+        if self._remote is not None:
+            self._remote.set_state("idle")
 
     def load_records(self, kind: Optional[str] = None, limit: Optional[int] = None) -> list:
         """Read this agent's records, newest first."""
@@ -460,7 +501,8 @@ class Agent(ABC):
         except Exception as e:
             self._errors += 1
             self._metrics["errors"] += 1
-            logger.error(f"Tick {self._cycle} error ({self._errors}/{self.config.max_consecutive_errors}): {e}")
+            self._last_tick_error = e
+            logger.error(f"Tick {self._cycle} error ({self._errors}/{self.config.max_consecutive_errors}): {e}", exc_info=True)
             if self._errors >= self.config.max_consecutive_errors:
                 logger.critical("Max consecutive errors reached, entering error state")
                 self.lifecycle = AgentState.ERROR
@@ -469,6 +511,20 @@ class Agent(ABC):
         self._cycle += 1
         self._last_tick = time.time()
         self._metrics["ticks"] += 1
+
+    def _alert_run_failure(self, exc: Exception) -> None:
+        dedupe_key = f"run-failure:{type(exc).__name__}"
+        try:
+            if self.has_recent_record(dedupe_key, within_hours=6):
+                return
+            self.alert(
+                f"{self.config.name} failed its scheduled run",
+                {"error": f"{type(exc).__name__}: {exc}"[:2000], "text": "Open the worker's logs for the traceback. The run was billed; fix the code or stop the schedule."},
+                kind="error",
+                dedupe_key=dedupe_key,
+            )
+        except Exception as alert_exc:
+            logger.warning(f"Could not write run-failure alert: {alert_exc}")
 
     def _alert_error_state(self, exc: Exception) -> None:
         dedupe_key = "agent-error-state"
@@ -484,28 +540,54 @@ class Agent(ABC):
         except Exception as alert_exc:
             logger.warning(f"Could not write error-state alert: {alert_exc}")
 
+    async def _handle_command(self, cmd: dict) -> None:
+        logger.info(f"Command received: {str(cmd.get('text', ''))[:100]}")
+        if self._remote is not None:
+            self._remote.set_state("working")
+        try:
+            async with self._work_lock:
+                reply = await self.on_command(Command(cmd))
+        except Exception as e:
+            # A raising on_command must still produce a reply and advance the
+            # inbox cursor; otherwise the same command replays every poll and
+            # every later command waits behind it forever.
+            logger.error(f"Command failed: {type(e).__name__}: {e}", exc_info=True)
+            reply = {"text": f"That command failed: {type(e).__name__}: {str(e)[:300]}", "ok": False, "error": True}
+        finally:
+            if self._remote is not None:
+                self._remote.set_state("idle")
+        payload = reply if isinstance(reply, dict) else {"text": str(reply)}
+        payload.setdefault("reply_to", cmd["id"])
+        self.record(
+            "reply",
+            payload,
+            title=(payload.get("text") or "")[:80],
+            dedupe_key=f"reply:{cmd['id']}",
+        )
+        self._metrics["commands_handled"] = self._metrics.get("commands_handled", 0) + 1
+
     async def _drain_inbox(self):
-        """Process all pending inbox commands once."""
+        """Process all pending inbox commands once: the local inbox file,
+        then, when reporting remotely, the platform's pending chat messages."""
         prior_offset = load_cursor(self.config.data_dir)["offset"]
         commands, end_offset, seen_ids = read_new_commands(self.config.data_dir)
         for cmd in commands:
             cmd_offset = cmd.pop("_offset", end_offset)
-            logger.info(f"Command received: {str(cmd.get('text', ''))[:100]}")
-            async with self._work_lock:
-                reply = await self.on_command(cmd)
-            payload = reply if isinstance(reply, dict) else {"text": str(reply)}
-            payload.setdefault("reply_to", cmd["id"])
-            self.record(
-                "reply",
-                payload,
-                title=(payload.get("text") or "")[:80],
-                dedupe_key=f"reply:{cmd['id']}",
-            )
+            await self._handle_command(cmd)
             seen_ids = seen_ids + [cmd["id"]]
             commit_cursor(self.config.data_dir, cmd_offset, seen_ids)
-            self._metrics["commands_handled"] = self._metrics.get("commands_handled", 0) + 1
         if end_offset != prior_offset:
             commit_cursor(self.config.data_dir, end_offset, seen_ids)
+        if self._remote is None:
+            return
+        try:
+            pending = await asyncio.to_thread(self._remote.pending_commands)
+        except Exception as e:
+            logger.warning(f"remote inbox poll failed: {e}")
+            return
+        for cmd in pending:
+            self._remote.mark_seen(cmd["id"])
+            await self._handle_command(cmd)
 
     async def _inbox_loop(self):
         while not self._shutdown_event.is_set():
@@ -582,6 +664,8 @@ class Agent(ABC):
         """Main entry point. Starts the API server and runs the observe-think-act loop."""
         self._started_at = time.time()
         self._write_pid()
+        if self._remote is not None:
+            self._remote.start()
 
         # Handle SIGTERM/SIGINT
         loop = asyncio.get_event_loop()
@@ -612,13 +696,27 @@ class Agent(ABC):
         # single tick is exactly one resident-loop iteration.
         if self.config.run_once:
             logger.info("Run mode: once (scheduled wake)")
+            self._last_tick_error = None
             try:
                 if self.config.chat_enabled:
                     try:
                         await self._drain_inbox()
                     except Exception as e:
-                        logger.error(f"Inbox drain error: {e}")
+                        logger.error(f"Inbox drain error: {e}", exc_info=True)
                 await self._tick()
+                if self.config.chat_enabled:
+                    # A command that landed while the tick ran would otherwise
+                    # sit in the inbox until the next wake; answer it now.
+                    try:
+                        await self._drain_inbox()
+                    except Exception as e:
+                        logger.error(f"Inbox drain error: {e}", exc_info=True)
+                if self._last_tick_error is not None:
+                    # A scheduled wake that raised must not look like a clean
+                    # run: write a deduped error alert the canvas badges, and
+                    # exit non-zero so the platform's crash counter sees it
+                    # instead of billing a silent no-op every wake forever.
+                    self._alert_run_failure(self._last_tick_error)
             finally:
                 self.lifecycle = AgentState.STOPPING
                 await self.teardown()
@@ -628,9 +726,13 @@ class Agent(ABC):
                     logger.warning("shutting down with notifications still queued")
                 if self._runner:
                     await self._runner.cleanup()
+                if self._remote is not None:
+                    await asyncio.to_thread(self._remote.stop)
                 self._remove_pid()
                 self.lifecycle = AgentState.STOPPED
                 logger.info("Agent stopped (run-once complete)")
+            if self._last_tick_error is not None:
+                raise SystemExit(2)
             return
 
         inbox_task = asyncio.create_task(self._inbox_loop()) if self.config.chat_enabled else None
@@ -692,6 +794,8 @@ class Agent(ABC):
                 logger.warning("shutting down with notifications still queued")
             if self._runner:
                 await self._runner.cleanup()
+            if self._remote is not None:
+                await asyncio.to_thread(self._remote.stop)
             self._remove_pid()
             self.lifecycle = AgentState.STOPPED
             logger.info("Agent stopped")

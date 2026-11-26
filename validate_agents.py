@@ -101,6 +101,12 @@ def check_manifest(agent_dir: Path, p: Problems) -> dict:
     if (manifest.get("coordination") or {}).get("event_bus_url"):
         p.error("coordination.event_bus_url must be null (there is no event bus in prod)")
 
+    requires = manifest.get("requires_env")
+    if requires is not None:
+        env_names = set((manifest.get("env_vars") or {}))
+        if not isinstance(requires, list) or any(k not in env_names for k in requires):
+            p.error("requires_env must list names that exist in env_vars")
+
     tick = manifest.get("tick_interval")
     if isinstance(tick, (int, float)) and tick < 5:
         p.warn(f"tick_interval of {tick}s is very aggressive; phase timestamps are the way to schedule work")
@@ -309,6 +315,46 @@ def discover(root: Path) -> list:
     return sorted(d for d in root.iterdir() if d.is_dir() and (d / "agent.json").is_file())
 
 
+PACK_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+MAX_PACK_AGENTS = 12
+
+
+def validate_pack(pack_file: Path, agent_slugs: set) -> Problems:
+    p = Problems()
+    if not SLUG_RE.match(pack_file.stem):
+        p.error(f"pack file name '{pack_file.name}' must be lowercase kebab-case")
+    try:
+        pack = json.loads(pack_file.read_text())
+    except json.JSONDecodeError as e:
+        p.error(f"not valid JSON: {e}")
+        return p
+    if not isinstance(pack, dict):
+        p.error("a pack must be a JSON object")
+        return p
+    name = str(pack.get("name", "")).strip()
+    if not name or len(name) > 60:
+        p.error("name must be 1-60 characters")
+    description = str(pack.get("description", "")).strip()
+    if not description:
+        p.warn("no description")
+    elif len(description) > 200:
+        p.error("description must be 200 characters or fewer")
+    if pack.get("color") and not PACK_COLOR_RE.match(str(pack["color"])):
+        p.error("color must be a #rrggbb hex value")
+    members = pack.get("agents")
+    if not isinstance(members, list) or not members:
+        p.error("agents must be a non-empty list of agent directory names")
+        return p
+    if len(members) > MAX_PACK_AGENTS:
+        p.error(f"a pack holds at most {MAX_PACK_AGENTS} agents")
+    if len(set(members)) != len(members):
+        p.error("agents lists the same agent twice")
+    for member in members:
+        if member not in agent_slugs:
+            p.error(f"agent '{member}' is not in agents/")
+    return p
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate DispatchKit agent directories")
     parser.add_argument("dirs", nargs="*", type=Path, help="agent directories to check")
@@ -348,9 +394,30 @@ def main() -> int:
         if args.strict and p.warnings:
             failed += 1
 
+    packs_dir = args.root.parent / "packs" if args.root else None
+    pack_files = sorted(packs_dir.glob("*.json")) if packs_dir and packs_dir.is_dir() else []
+    agent_slugs = {d.name for d in discover(args.root)} if args.root else set()
+    pack_failed = 0
+    for pack_file in pack_files:
+        p = validate_pack(pack_file, agent_slugs)
+        label = f"pack {pack_file.stem}"
+        if p.errors:
+            pack_failed += 1
+            print(f"[FAIL] {label}")
+        elif p.warnings:
+            print(f"[WARN] {label}")
+        else:
+            print(f"[PASS] {label}")
+        for e in p.errors:
+            print(f"    ERROR   {e}")
+        for w in p.warnings:
+            print(f"    warning {w}")
+
     print()
     print(f"{len(targets) - failed} of {len(targets)} agent(s) pass.")
-    return 1 if failed else 0
+    if pack_files:
+        print(f"{len(pack_files) - pack_failed} of {len(pack_files)} pack(s) pass.")
+    return 1 if failed or pack_failed else 0
 
 
 if __name__ == "__main__":

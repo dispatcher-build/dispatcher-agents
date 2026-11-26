@@ -5,7 +5,7 @@ endpoint at /api/v2/summary.json carries both the overall indicator and the
 list of unresolved incidents.
 """
 
-import requests
+from dispatchkit import http
 
 TIMEOUT = 15
 HEADERS = {"User-Agent": "dispatcher-agent (+https://dispatcher.build)"}
@@ -31,9 +31,7 @@ def parse_vendors(raw: str) -> list:
 
 def fetch_summary(base_url: str) -> dict:
     """One vendor's health: overall indicator plus unresolved incidents."""
-    resp = requests.get(f"{base_url}/api/v2/summary.json", headers=HEADERS, timeout=TIMEOUT)
-    resp.raise_for_status()
-    data = resp.json()
+    data = http.fetch(f"{base_url}/api/v2/summary.json", headers=HEADERS, timeout=TIMEOUT).json()
     status = data.get("status") or {}
     incidents = []
     for inc in data.get("incidents") or []:

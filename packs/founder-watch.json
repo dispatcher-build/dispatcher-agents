@@ -1,0 +1,11 @@
+{
+  "name": "Founder Watch",
+  "description": "Who is talking about you, what your competitors changed, and what moved in your industry.",
+  "color": "#8b5cf6",
+  "agents": [
+    "brand-mention-monitor",
+    "competitor-price-watch",
+    "site-monitor",
+    "news-digest"
+  ]
+}

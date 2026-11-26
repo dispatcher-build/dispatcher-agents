@@ -31,7 +31,7 @@
     "HOT_POINTS": "50",
     "MAX_MENTIONS_PER_SCAN": "25",
     "MAX_ITEMS_PER_DIGEST": "60",
-    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5",
+    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5-5",
     "AWS_REGION": "us-east-1",
     "LLM_DISABLED": "0",
     "NOTIFY_ON": "hot,digest",

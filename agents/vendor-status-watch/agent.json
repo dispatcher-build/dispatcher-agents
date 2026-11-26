@@ -34,7 +34,7 @@
     "SCAN_MINUTES": "5",
     "REPORT_EVERY_HOURS": "24",
     "LLM_MAX_CALLS_PER_DAY": "20",
-    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5",
+    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5-5",
     "AWS_REGION": "us-east-1",
     "LLM_DISABLED": "0",
     "NOTIFY_ON": "incident,recovered",
