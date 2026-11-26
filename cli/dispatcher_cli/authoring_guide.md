@@ -38,7 +38,8 @@ a development instance. Say which one you are on before creating or starting any
 - `self.state` is a persisted dict; call `self.save_state()` after changing it outside a phase.
 - Output is `self.record(kind, payload, title=..., tags=[...], dedupe_key=...)`. Records are
   what the Overview shows. Put readable text in a payload key ending `_md`, or in `text`/`summary`.
-- `self.alert(title, payload, level="info"|"error")` badges the worker on the canvas. Use sparingly.
+- `self.alert(title, payload, level="info")` badges the worker on the canvas; use `level="error"` only when
+  something is broken. Always pass `level`: leaving it out means error and shows a red badge. Use sparingly.
 - Chat: `async def on_command(self, command)` returns a str or dict; fall back to
   `await super().on_command(command)`. `command["text"]` is the message.
 - LLM: `await self.ask_llm(prompt, system=..., stub=...)` and `await self.ask_json(...)`
@@ -63,11 +64,16 @@ a development instance. Say which one you are on before creating or starting any
 ## Interface contract (`ui/index.html`)
 
 One self-contained page, inline CSS and JS, no external scripts or fonts. It is the main
-panel of the worker's Overview, so build it as a finished product. `window.dispatcher` is
+panel of the worker's Overview, so keep it to what the user acts on. `window.dispatcher` is
 injected, every call returns a Promise and rejects with the server's message:
 
 `command(text)`, `run(text?)`, `records({kind, limit})`, `chat({limit})`, `query(sql)`, `status()`,
-`uploads()`, `upload(file, name?)`, `readUpload(name)`, `removeUpload(name)`, `outputs()`, `download(name)`.
+`uploads()`, `upload(file, name?)`, `readUpload(name)`, `removeUpload(name)`, `outputs()`, `download(name)`,
+`dictate({lang?})` (resolves `{text}` when the speaker stops; the app's page runs the browser's
+speech recognition because the sandboxed frame cannot use the microphone), `dictateStop()`,
+`onDictation(cb)` (`cb(text, final)` with the running transcript), `preview(url)` (shows an
+app running on the user's own computer, a `localhost` address only, in a panel above the
+page; `preview('')` hides it).
 
 The sandbox has no `localStorage`. A page keeps its own state by uploading JSON
 (`upload(new Blob([json]), 'inputs.json')`) and reading it back with `readUpload`; the worker
@@ -83,9 +89,16 @@ Render current state on load (uploads, outputs, latest result), poll every few s
 while a run is in flight and show errors inline. Drive the primary action with
 `dispatcher.run('command text')`: it queues the command and starts one run, so the user
 never starts the worker by hand. A run-once worker drains its inbox before its tick, so
-the command reaches `on_command`, and the container exits when the job is done. Look: background `#0a0b0d`, panels `#121418`,
-1px borders `#23262d`, text `#e4e4e4`, muted `#8b8f98`, one accent colour, system-ui 13px,
-real copy, no emojis.
+the command reaches `on_command`, and the container exits when the job is done. Look: the app injects its theme into the frame as CSS variables on `<html>`,
+switching live between light and dark: `--bg`, `--panel`, `--inset`, `--border`, `--border-strong`,
+`--text`, `--dim`, `--faint`, `--link`, `--ok`, `--warn`, `--err`, plus a base `body` style
+(system-ui 14px, page background, page text). Use those variables for every neutral colour and
+never hardcode a grey, black or white; pick one accent colour of your own. Keep the page
+almost empty: usually the latest result, the one input the worker needs and one primary
+button. No page title or header (the app already shows the worker's name and goal), no tabs,
+settings, stats, charts, help text or history list (the app lists past results below the
+page), no outer frame; a single column of plain sections. Add more only when the user asks.
+Real copy, no emojis.
 
 ## Definition of done
 

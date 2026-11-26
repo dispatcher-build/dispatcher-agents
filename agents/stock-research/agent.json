@@ -29,7 +29,7 @@
     "NEWS_SCAN_MINUTES": "45",
     "MAX_DEEP_DIVES_PER_DAY": "3",
     "DEEP_DIVE_COOLDOWN_DAYS": "7",
-    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5",
+    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5-5",
     "AWS_REGION": "us-east-1",
     "SEC_USER_AGENT": "dispatcher-agent (+https://dispatcher.build)",
     "LLM_DISABLED": "0",

@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 USAGE_FILE = "llm_usage.json"
 USAGE_LOG_FILE = "llm_usage.jsonl"
-DEFAULT_MODEL = "us.anthropic.claude-sonnet-5"
+DEFAULT_MODEL = "us.anthropic.claude-sonnet-5-5"
 
 
 class LLMBudgetExceeded(RuntimeError):

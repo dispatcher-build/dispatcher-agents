@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Dev</title>
+<style>
+  :root { --accent:#d97757; }
+  * { box-sizing:border-box; }
+  body { padding:2px 2px 24px; font-size:13.5px; }
+  .mono { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; }
+  a { color:var(--link); text-decoration:none; } a:hover { text-decoration:underline; }
+  button, .btn { background:none; color:var(--text); border:1px solid var(--border-strong); border-radius:7px; padding:6px 12px; font:inherit; font-size:13px; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; }
+  button:hover, .btn:hover { border-color:var(--accent); text-decoration:none; }
+  button:disabled { opacity:.45; cursor:default; border-color:var(--border-strong); }
+  button.primary { background:var(--accent); border-color:var(--accent); color:var(--bg); font-weight:600; }
+  button.danger:hover { border-color:var(--err); color:var(--err); }
+  textarea { width:100%; background:var(--inset); border:1px solid var(--border); border-radius:8px; padding:10px 12px; color:var(--text); font:inherit; resize:vertical; min-height:64px; display:block; }
+  textarea:focus { outline:none; border-color:var(--accent); }
+
+  .top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:0 0 14px; }
+  .state { flex:1; min-width:220px; color:var(--dim); display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .state b { color:var(--text); font-weight:600; }
+  .actions { display:flex; gap:6px; flex-wrap:wrap; }
+  .banner { border-left:3px solid var(--warn); padding:6px 12px; margin-bottom:14px; color:var(--dim); }
+  .hint { font-size:12px; color:var(--faint); }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--faint); flex:none; display:inline-block; }
+  .dot.working { background:var(--warn); animation:pulse 1.2s ease-in-out infinite; }
+  .dot.on { background:var(--ok); }
+  @keyframes pulse { 50% { opacity:.35; } }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .grow { flex:1; }
+
+  .newform { display:flex; flex-direction:column; gap:8px; margin-bottom:22px; }
+  .team { margin-bottom:22px; }
+  .card { display:flex; align-items:baseline; gap:10px; padding:10px 0; border-top:1px solid var(--border); cursor:pointer; }
+  .card:hover .name { text-decoration:underline; }
+  .card .name { font-weight:600; white-space:nowrap; }
+  .card .what { flex:1; min-width:0; color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .card .meta { color:var(--faint); font-size:12px; white-space:nowrap; }
+  .card .mini { font:inherit; font-size:12px; padding:2px 8px; border-radius:6px; border:1px solid var(--border); background:none; color:var(--dim); cursor:pointer; white-space:nowrap; }
+  .card .mini:hover:not(:disabled) { color:var(--text); border-color:var(--border-strong); }
+  .card .mini:disabled { opacity:.4; cursor:default; }
+  .empty { padding:10px 0; color:var(--faint); }
+  details.lead > summary { cursor:pointer; color:var(--dim); padding:6px 0; }
+
+  .log { display:flex; flex-direction:column; gap:14px; padding:2px 0 14px; }
+  .you { align-self:flex-end; max-width:85%; background:var(--panel); border:1px solid var(--border); border-radius:10px 10px 2px 10px; padding:8px 12px; white-space:pre-wrap; word-break:break-word; }
+  .answer { white-space:pre-wrap; word-break:break-word; line-height:1.6; }
+  .answer.err { color:var(--err); }
+  .note { font-size:12.5px; color:var(--faint); white-space:pre-wrap; word-break:break-word; }
+  .note.err { color:var(--err); }
+  details.steps { font-size:12.5px; color:var(--dim); }
+  details.steps summary { cursor:pointer; color:var(--faint); }
+  .step { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; color:var(--dim); padding:1px 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .step b { color:var(--text); font-weight:500; }
+  .step.text { font-family:inherit; white-space:normal; }
+  .working { color:var(--warn); font-size:12.5px; }
+  code { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12.5px; background:var(--inset); border:1px solid var(--border); border-radius:4px; padding:0 4px; }
+  pre { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12.5px; background:var(--inset); border:1px solid var(--border); border-radius:8px; padding:10px; overflow:auto; margin:6px 0; white-space:pre; }
+  pre code { background:none; border:0; padding:0; }
+  .compose { display:flex; flex-direction:column; gap:8px; }
+  .more { align-self:center; font-size:12px; }
+</style>
+</head>
+<body>
+  <div class="banner" id="offline" style="display:none"></div>
+  <div class="top" id="top" style="display:none">
+    <div class="state" id="state"></div>
+    <div class="actions" id="headActions"></div>
+  </div>
+
+  <div class="newform" id="newForm" style="display:none">
+    <textarea id="newTask" placeholder="What needs doing? Each task gets its own hex, with its own branch and its own copy of the app."></textarea>
+    <div class="row"><span class="hint grow">Ctrl/Cmd+Enter starts it</span><button class="primary" id="createBtn">Start task</button></div>
+  </div>
+
+  <div class="team" id="team" style="display:none"></div>
+
+  <details class="lead" id="leadBox" style="display:none"><summary>Ask the lead about the work in progress</summary><div id="leadSlot"></div></details>
+
+  <div id="convo" style="display:none">
+    <div class="log" id="log"></div>
+    <div class="compose">
+      <textarea id="input"></textarea>
+      <div class="row"><span class="hint grow">Enter sends · Shift+Enter for a new line</span><button class="primary" id="sendBtn">Send</button></div>
+    </div>
+  </div>
+
+<script>
+  const $ = (id) => document.getElementById(id)
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+  const inline = (t) => t
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>')
+    .replace(/^#{1,4} (.+)$/gm, '<b>$1</b>')
+    .replace(/^(\s*)[-*] (.+)$/gm, '$1• $2')
+  const md = (s) => esc(s).split(/```/).map((part, i) => (i % 2 ? `<pre>${part.replace(/^[\w-]*\n/, '')}</pre>` : inline(part))).join('')
+  const t = (ts) => new Date(ts && !/(Z|[+-]\d\d:?\d\d)$/.test(ts) ? `${ts}Z` : ts || 0).getTime() || 0
+  const ago = (ts) => {
+    if (!ts) return ''
+    const s = Math.max(0, (Date.now() - t(ts)) / 1000)
+    return s < 60 ? 'just now' : s < 3600 ? `${Math.floor(s / 60)}m ago` : s < 86400 ? `${Math.floor(s / 3600)}h ago` : `${Math.floor(s / 86400)}d ago`
+  }
+  const prLabel = (url) => { const m = /\/pull\/(\d+)/.exec(url || ''); return m ? `PR #${m[1]}` : 'PR' }
+  const firstLine = (s) => String(s || '').replace(/[`*#]/g, '').trim().split('\n')[0]
+
+  let previewed = ''
+  let mode = null, roster = null, records = { turn: [], step: [], note: [], pr: [] }, running = null
+  let showAll = false, timer = null, armed = false, closing = null
+  const last = { log: '', team: '', head: '', state: '' }
+  const pending = new Map()
+  const replies = []
+  const opened = new Set()
+
+  const send = async (text) => {
+    try {
+      const res = await dispatcher.command(text)
+      if (res?.id) pending.set(res.id, { ts: new Date().toISOString(), text })
+    } catch (e) {
+      replies.push({ ts: new Date().toISOString(), text: e.message, err: true })
+    }
+    render()
+    schedule(500)
+  }
+
+  const stepHtml = (x) => x.tool === 'text'
+    ? `<div class="step text">${esc(x.summary)}</div>`
+    : `<div class="step"><b>${esc(x.tool)}</b> ${esc(x.summary)}</div>`
+
+  const transcript = (live) => {
+    const items = []
+    for (const r of records.turn) {
+      const p = r.payload || {}
+      const key = `${p.started}`
+      const steps = (p.steps || []).filter((x) => x.tool !== 'text' || x.summary !== (p.answer_md || '').trim().slice(0, 400))
+      items.push({ ts: t(p.started || r.ts), html: `<div class="you">${esc(p.prompt)}</div>` })
+      if (steps.length) items.push({ ts: t(p.started || r.ts) + 1, html: `<details class="steps" data-key="${esc(key)}"${opened.has(key) ? ' open' : ''}><summary>${steps.length} step${steps.length === 1 ? '' : 's'}</summary>${steps.map(stepHtml).join('')}</details>` })
+      if (p.answer_md) items.push({ ts: t(r.ts), html: `<div class="answer">${md(p.answer_md)}</div>` })
+      if (p.error) items.push({ ts: t(r.ts) + 1, html: `<div class="answer err">${md(p.error)}</div>` })
+    }
+    for (const r of records.note) items.push({ ts: t(r.ts), html: `<div class="note${r.alert === 'error' ? ' err' : ''}">${md(r.payload?.text)}</div>` })
+    for (const r of records.pr) if (r.payload?.url) items.push({ ts: t(r.ts), html: `<div class="note">Pull request: <a href="${esc(r.payload.url)}" target="_blank" rel="noopener">${esc(r.payload.url)}</a></div>` })
+    for (const r of replies) items.push({ ts: t(r.ts), html: `<div class="note${r.err ? ' err' : ''}">${md(r.text)}</div>` })
+    items.sort((a, b) => a.ts - b.ts)
+    if (live?.working) {
+      const begun = t(live.started) - 5000
+      const steps = records.step.filter((r) => t(r.ts) >= begun).reverse()
+      items.push({ html: `<div class="you">${esc(live.prompt)}</div>` })
+      if (steps.length) items.push({ html: `<div>${steps.slice(-8).map((r) => stepHtml(r.payload)).join('')}</div>` })
+      items.push({ html: `<div class="working">Working${live.queued ? ` · ${live.queued} queued` : ''} · started ${ago(live.started)}</div>` })
+    } else {
+      for (const p of pending.values()) {
+        if (!/^(up|down|diff|sync|pr|stop|close|status|sessions)$/.test(p.text) && !p.text.startsWith('+')) items.push({ html: `<div class="you">${esc(p.text)}</div><div class="working">Sending…</div>` })
+      }
+    }
+    return items
+  }
+
+  const renderLog = (live, emptyText) => {
+    const items = transcript(live)
+    const shown = showAll ? items : items.slice(-40)
+    const html = (items.length > shown.length ? '<button class="more" id="more">Show earlier</button>' : '')
+      + (shown.length ? shown.map((i) => i.html).join('') : `<div class="empty">${emptyText}</div>`)
+    if (html === last.log) return
+    last.log = html
+    $('log').innerHTML = html
+    if ($('more')) $('more').onclick = () => { showAll = true; render() }
+    for (const d of $('log').querySelectorAll('details[data-key]')) d.ontoggle = () => { d.open ? opened.add(d.dataset.key) : opened.delete(d.dataset.key) }
+  }
+
+  const setHead = (html, bind) => {
+    if (html === last.head) return
+    last.head = html
+    $('headActions').innerHTML = html
+    bind()
+  }
+
+  const renderLead = () => {
+    $('top').style.display = 'none'
+    $('newForm').style.display = ''
+    const team = roster.sessions || []
+    const cards = team.map((s) => {
+      const state = s.working ? 'working' : s.alive ? 'on' : ''
+      const what = s.working ? esc(firstLine(s.prompt)) : s.last_answer ? esc(firstLine(s.last_answer)) : s.alive ? 'Waiting for a task' : 'Not running on this computer'
+      const meta = [s.pr_url ? prLabel(s.pr_url) : s.ahead ? `${s.ahead} commit${s.ahead === 1 ? '' : 's'}` : '', s.app_url ? 'app running' : ''].filter(Boolean).join(' · ')
+      return `<div class="card" data-agent="${esc(s.agent_id)}" title="Open ${esc(s.name)}"><span class="dot ${state}"></span><span class="name">${esc(s.name)}</span><span class="what">${what}</span><span class="meta">${meta}</span><button class="mini" data-review="${esc(s.name)}" ${s.ahead || s.dirty ? '' : 'disabled'}>Review</button><button class="mini" data-close="${esc(s.name)}" ${s.working ? 'disabled' : ''}>${closing === s.name ? 'Confirm' : 'Close'}</button></div>`
+    }).join('')
+    const teamHtml = team.length ? cards : '<div class="empty">No tasks in progress.</div>'
+    if (teamHtml !== last.team) {
+      last.team = teamHtml
+      $('team').innerHTML = teamHtml
+      for (const c of $('team').querySelectorAll('[data-agent]')) c.onclick = () => { dispatcher.openWorker?.(c.dataset.agent).catch(() => {}) }
+      for (const b of $('team').querySelectorAll('[data-review]')) b.onclick = (e) => { e.stopPropagation(); $('leadBox').open = true; send(`review ${b.dataset.review}`) }
+      for (const b of $('team').querySelectorAll('[data-close]')) b.onclick = (e) => {
+        e.stopPropagation()
+        if (closing !== b.dataset.close) { closing = b.dataset.close; render(); return }
+        closing = null
+        send(`close ${b.dataset.close}`)
+      }
+    }
+    $('team').style.display = ''
+    if ($('convo').parentElement !== $('leadSlot')) $('leadSlot').appendChild($('convo'))
+    $('leadBox').style.display = ''
+    if (roster.lead?.working || replies.some((r) => r.err)) $('leadBox').open = true
+    renderLog(roster.lead, '')
+    $('input').placeholder = 'Ask what is going on across the tasks, or describe a piece of work to split up…'
+    $('sendBtn').textContent = roster.lead?.working ? 'Queue' : 'Send'
+  }
+
+  const renderSession = () => {
+    const s = roster
+    $('top').style.display = ''
+    $('team').style.display = 'none'
+    $('newForm').style.display = 'none'
+    if (s.closed) {
+      $('state').textContent = 'This task is closed. Its branch is kept.'
+      if (previewed) {
+        previewed = ''
+        dispatcher.preview('').catch(() => {})
+      }
+      setHead('', () => {})
+      renderLog(null, '')
+      return
+    }
+    if ((s.app_url || '') !== previewed) {
+      previewed = s.app_url || ''
+      dispatcher.preview(previewed).catch(() => {})
+    }
+    const git = [
+      `${s.ahead} commit${s.ahead === 1 ? '' : 's'} ahead of ${esc(s.base)}${s.behind ? `, ${s.behind} behind` : ''}`,
+      s.dirty ? `${s.dirty} uncommitted` : '',
+      s.app_url ? `<a href="#" data-act="preview">app on :${s.port}</a>` : '',
+      `<a href="vscode://file${esc(s.path)}">open folder</a>`,
+    ].filter(Boolean).join(' · ')
+    const stateHtml = `<span class="dot ${s.working ? 'working' : running ? 'on' : ''}"></span><b>${s.working ? 'Working' : running ? 'Ready' : 'Not running'}</b><span>${git}</span>`
+    if (stateHtml !== last.state) {
+      last.state = stateHtml
+      $('state').innerHTML = stateHtml
+      for (const a of $('state').querySelectorAll('[data-act]')) a.onclick = (e) => { e.preventDefault(); act(a.dataset.act) }
+    }
+    const app = s.app_url ? '<button data-act="down">Stop app</button>' : '<button data-act="up">Start app</button>'
+    const sync = s.behind && !s.working ? '<button data-act="sync">Sync</button>' : ''
+    const pr = s.pr_url
+      ? `<a class="btn" href="${esc(s.pr_url)}" target="_blank" rel="noopener">${prLabel(s.pr_url)}</a>${s.ahead && !s.working ? '<button data-act="pr">Push to PR</button>' : ''}`
+      : `<button data-act="pr" ${s.working || !s.ahead ? 'disabled' : ''}>Open PR</button>`
+    const end = s.working ? '<button data-act="stop" class="danger">Stop</button>' : `<button data-act="close" class="danger">${armed ? 'Confirm close' : 'Close'}</button>`
+    setHead(`${app}${sync}${pr}${end}`, () => {
+      for (const b of $('headActions').querySelectorAll('[data-act]')) b.onclick = () => act(b.dataset.act)
+    })
+    renderLog(s, 'Nothing yet. Describe the task below.')
+    $('input').placeholder = s.working ? 'Queue a follow-up…' : 'What should change?'
+    $('sendBtn').textContent = s.working ? 'Queue' : 'Send'
+  }
+
+  const render = () => {
+    $('convo').style.display = roster ? '' : 'none'
+    if (!roster) return
+    if (mode === 'lead') renderLead()
+    else renderSession()
+  }
+
+  const act = (word) => {
+    if (word === 'preview') {
+      if (roster && roster.app_url) dispatcher.preview(roster.app_url).catch(() => {})
+      return
+    }
+    if (word === 'close' && !armed) {
+      armed = true
+      last.head = ''
+      render()
+      setTimeout(() => { if (armed) { armed = false; last.head = ''; render() } }, 4000)
+      return
+    }
+    armed = false
+    last.head = ''
+    send(word)
+  }
+
+  const submit = () => {
+    const text = $('input').value.trim()
+    if (!text) return
+    $('input').value = ''
+    send(text)
+  }
+  $('input').onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }
+  $('sendBtn').onclick = submit
+
+  const create = () => {
+    const task = $('newTask').value.trim()
+    if (!task) return
+    const slug = (task.toLowerCase().match(/[a-z0-9]+/g) || []).slice(0, 5).join('-').slice(0, 40) || 'task'
+    $('newTask').value = ''
+    send(`+${slug} ${task}`)
+  }
+  $('createBtn').onclick = create
+  $('newTask').onkeydown = (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); create() } }
+
+  const refresh = async () => {
+    try {
+      const [team, session, turn, step, note, pr, chat, status] = await Promise.all([
+        dispatcher.records({ kind: 'team', limit: 1 }),
+        dispatcher.records({ kind: 'session', limit: 1 }),
+        dispatcher.records({ kind: 'turn', limit: 100 }),
+        dispatcher.records({ kind: 'step', limit: 100 }),
+        dispatcher.records({ kind: 'note', limit: 100 }),
+        dispatcher.records({ kind: 'pr', limit: 50 }),
+        pending.size ? dispatcher.chat({ limit: 40 }) : Promise.resolve([]),
+        dispatcher.status(),
+      ])
+      if (team[0]) { mode = 'lead'; roster = team[0].payload }
+      else if (session[0]) { mode = 'session'; roster = session[0].payload }
+      records = { turn, step, note, pr }
+      for (const m of chat.messages || chat) {
+        if (!m.reply_to || !pending.has(m.reply_to)) continue
+        pending.delete(m.reply_to)
+        if (!/^(Working on it\.|Queued;)/.test(m.text || '')) replies.push({ ts: m.ts, text: m.text, err: /^(There is no|Could not|`.*` can't|There are uncommitted|Still working|A session called)/.test(m.text || '') })
+      }
+      const known = Boolean(status && 'local' in status)
+      running = Boolean(status?.local?.alive || status?.running)
+      if (mode === 'session' && roster && !running) roster = { ...roster, working: false }
+      $('offline').style.display = known && !running ? '' : 'none'
+      $('offline').textContent = 'This runs on your own computer. Open the Dispatcher desktop app there and it starts.'
+      render()
+    } catch (e) {
+      $('offline').style.display = ''
+      $('offline').textContent = e.message
+    }
+    schedule()
+  }
+
+  const schedule = (ms) => {
+    clearTimeout(timer)
+    const busy = pending.size || roster?.working || roster?.lead?.working || roster?.sessions?.some((s) => s.working)
+    timer = setTimeout(refresh, ms ?? (busy ? 2000 : 5000))
+  }
+
+  refresh()
+</script>
+</body>
+</html>

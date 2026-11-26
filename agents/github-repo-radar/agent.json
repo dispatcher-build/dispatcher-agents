@@ -34,7 +34,7 @@
     "CHECK_HOURS": "6",
     "REPORT_EVERY_HOURS": "168",
     "GITHUB_TOKEN": "",
-    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5",
+    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5-5",
     "AWS_REGION": "us-east-1",
     "LLM_DISABLED": "0",
     "NOTIFY_ON": "release,report",

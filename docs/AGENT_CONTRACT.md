@@ -136,8 +136,18 @@ agent still passes.
 
 The platform appends user messages to `data/inbox.jsonl`
 (`POST /api/v2/agents/{id}/command`); the SDK drains it every ~2s (independent
-of tick cadence) and calls `on_command(cmd)`. The reply is written as a
+of tick cadence) and calls `on_command(cmd)`. If `on_command` raises, the SDK
+writes an error reply (`That command failed: …`, `ok: false`) and still advances
+the inbox, so one bad command never replays forever or blocks the next one
+(2026-11-04). The reply is written as a
 `kind="reply"` record and surfaced in the Chat tab.
+
+`cmd` is a `Command`: the text the user typed, as a `str`, that also carries the
+inbox record's fields. Both `cmd.strip().lower() == "status"` and
+`cmd["text"]` / `cmd.get("meta")` work, and `super().on_command(cmd)` accepts it
+back. Before 2026-11-07 it was a plain dict, so handlers that treated it as text
+failed with `'dict' object has no attribute 'strip'`, and handlers that converted
+it with `str(cmd)` failed in the fallback with `'str' object has no attribute 'get'`.
 
 - Default behavior (no override): the SDK answers from your goal + state +
   recent records via the LLM — zero code for a conversational agent.

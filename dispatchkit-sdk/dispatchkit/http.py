@@ -23,6 +23,17 @@ RETRY_STATUSES = {408, 425, 429, 500, 502, 503, 504}
 USER_AGENT = "dispatchkit-agent/1.0"
 
 
+class _GuardedRedirect(urllib.request.HTTPRedirectHandler):
+    """Re-check every redirect hop: a public URL must not bounce to a private one."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        netsafe.assert_public_url(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_opener = urllib.request.build_opener(_GuardedRedirect)
+
+
 class HTTPError(RuntimeError):
     def __init__(self, status: int, url: str, body: str = ""):
         super().__init__(f"HTTP {status} for {url}")
@@ -79,7 +90,7 @@ def fetch(
         attempt += 1
         req = urllib.request.Request(url, data=payload, headers=req_headers, method=method.upper())
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
+            with _opener.open(req, timeout=timeout) as resp:
                 response = Response(resp.status, resp.geturl(), dict(resp.headers.items()), resp.read())
         except urllib.error.HTTPError as e:
             body = e.read() if hasattr(e, "read") else b""

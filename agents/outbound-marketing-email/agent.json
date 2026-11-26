@@ -83,7 +83,7 @@
     "SKIP_SES_SUPPRESSION": "0",
     "LLM_DISABLED": "0",
     "LLM_MAX_CALLS_PER_DAY": "50",
-    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5",
+    "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-5-5",
     "NOTIFY_ON": "done,blocked",
     "NOTIFY_WEBHOOK_URL": "",
     "NOTIFY_EMAIL_TO": "",
@@ -93,6 +93,10 @@
     "SMTP_PASSWORD": "",
     "SMTP_FROM": ""
   },
+  "requires_env": [
+    "RESEND_API_KEY",
+    "FROM_EMAIL"
+  ],
   "goal": "Run outbound email campaigns for its owner. Holds several campaigns at once, each with its own audience, subject and body, and sends only the ones armed from the worker's interface. Pulls recipients from a database query, a file, or addresses pasted in; validates every address; paces sending within a daily cap and a rate so a large list goes out over days rather than one reputation-burning burst; never emails the same person twice for a campaign; and honours a suppression list. Sends through Resend or Amazon SES using the owner's own account.",
   "ai_enabled": false,
   "coordination": {

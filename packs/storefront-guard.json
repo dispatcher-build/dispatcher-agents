@@ -1,0 +1,11 @@
+{
+  "name": "Storefront Guard",
+  "description": "Know the moment your site or a vendor goes down, and see new customer reviews and mentions as they land.",
+  "color": "#10b981",
+  "agents": [
+    "site-sentinel",
+    "vendor-status-watch",
+    "review-radar",
+    "brand-mention-monitor"
+  ]
+}

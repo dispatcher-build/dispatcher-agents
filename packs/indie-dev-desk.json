@@ -1,0 +1,11 @@
+{
+  "name": "Indie Dev Desk",
+  "description": "What the developer community is saying, which repos are moving, whether your vendors are up, and the day's AI news.",
+  "color": "#3b82f6",
+  "agents": [
+    "hn-radar",
+    "github-repo-radar",
+    "vendor-status-watch",
+    "news-digest"
+  ]
+}
